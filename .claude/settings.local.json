@@ -5,7 +5,8 @@
       "PowerShell(Get-Process *)",
       "PowerShell(Start-Sleep -Seconds 3; $r = Invoke-WebRequest -Uri \"http://localhost:3000/login\" -UseBasicParsing -ErrorAction SilentlyContinue; Write-Host \"Status: $\\($r.StatusCode\\)\"; $r.Content | Select-String \"SgOps\" | Select-Object -First 3)",
       "PowerShell($pages = @\\(\"/login\", \"/signup\", \"/prospect\"\\); foreach \\($p in $pages\\) { try { $r = Invoke-WebRequest -Uri \"http://localhost:3000$p\" -UseBasicParsing -MaximumRedirection 0 -ErrorAction SilentlyContinue; Write-Host \"$p -> $\\($r.StatusCode\\)\" } catch { Write-Host \"$p -> $\\($_.Exception.Response.StatusCode.value__\\)\" } })",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Skill(claude-api)"
     ]
   }
 }
