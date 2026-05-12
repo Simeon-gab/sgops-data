@@ -34,3 +34,20 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #3a3a4e;
 }
+
+/* Page transitions */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.22s ease-out both;
+}
+
+/* Staggered children */
+.stagger > * { animation: fade-up 0.22s ease-out both; }
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }

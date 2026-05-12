@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import { useLeads } from "@/hooks/useLeads";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
 import { BatchSendBar } from "@/components/outreach/batch-send-bar";
+import { toast } from "@/components/ui/toast";
 import type { Lead } from "@/lib/utils/types";
 
 export default function LeadsPage() {
@@ -36,6 +37,22 @@ export default function LeadsPage() {
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
+  async function handleExport() {
+    try {
+      const res = await fetch("/api/leads/export");
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sgops-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast("Export failed", "error");
+    }
+  }
+
   return (
     <div className="max-w-full">
       <div className="mb-6 flex items-center justify-between">
@@ -47,13 +64,24 @@ export default function LeadsPage() {
               : `${leads.length} lead${leads.length !== 1 ? "s" : ""} in your workspace`}
           </p>
         </div>
-        <Link
-          href="/prospect"
-          className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gold text-bg-0 font-medium hover:bg-gold-bright transition-colors"
-        >
-          <Search className="h-4 w-4" />
-          New search
-        </Link>
+        <div className="flex items-center gap-2">
+          {leads.length > 0 && (
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border text-text-3 hover:text-text-1 hover:border-border-hover transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
+          )}
+          <Link
+            href="/prospect"
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gold text-bg-0 font-medium hover:bg-gold-bright transition-colors"
+          >
+            <Search className="h-4 w-4" />
+            New search
+          </Link>
+        </div>
       </div>
 
       {error && (

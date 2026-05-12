@@ -3,12 +3,13 @@
 import { usePathname } from "next/navigation";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/prospect": "Prospect",
-  "/leads": "Leads",
-  "/pipeline": "Pipeline",
+  "/dashboard":    "Dashboard",
+  "/prospect":     "Prospect",
+  "/leads":        "Leads",
+  "/pipeline":     "Pipeline",
   "/data-quality": "Data Quality",
-  "/outreach": "Outreach",
-  "/settings": "Settings",
+  "/outreach":     "Outreach",
+  "/settings":     "Settings",
 };
 
 export function Topbar() {
