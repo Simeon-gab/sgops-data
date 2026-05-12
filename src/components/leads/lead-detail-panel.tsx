@@ -37,7 +37,8 @@ export function LeadDetailPanel({ lead, onClose, onLeadUpdated }: LeadDetailPane
 
   const open = lead !== null;
 
-  // Sync when a different lead is selected
+  // Sync when a different lead is selected — intentionally keyed on id only
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (lead) {
       setCurrentLead(lead);
