@@ -73,6 +73,10 @@ export default function LeadsPage() {
       <LeadDetailPanel
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
+        onLeadUpdated={(updated) => {
+          // Keep the panel showing the fresh lead
+          setSelectedLead(updated);
+        }}
       />
     </div>
   );
