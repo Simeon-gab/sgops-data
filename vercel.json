@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "src/app/api/generate/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/email/send/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/prospect/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/enrich/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

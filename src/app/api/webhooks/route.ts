@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 // ── POST /api/webhooks ────────────────────────────────────────────────────────
 // Handles Resend delivery webhooks.
@@ -72,8 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  // Use service role to bypass RLS on webhook (no user session)
-  const supabase = createClient();
+  const supabase = createServiceClient();
 
   const { data: existing } = await supabase
     .from("outreach_sends")

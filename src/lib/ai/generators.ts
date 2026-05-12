@@ -38,8 +38,8 @@ async function callClaude(
     {
       model,
       max_tokens: maxTokens,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      system: [systemBlock] as any,
+      // SDK v0.39 doesn't type prompt-caching system blocks
+      system: [systemBlock] as Parameters<typeof anthropic.messages.create>[0]["system"],
       messages: [{ role: "user", content: userPrompt }],
     },
     { headers: { "anthropic-beta": "prompt-caching-2024-07-31" } }
