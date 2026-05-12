@@ -1,9 +1,11 @@
 "use client";
 
-import { Copy, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Copy, RefreshCw, AlertCircle, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTabContent } from "@/hooks/useTabContent";
 import { toast } from "@/components/ui/toast";
+import { SendEmailModal } from "@/components/outreach/send-email-modal";
 import type { Lead } from "@/lib/utils/types";
 
 interface ColdEmailTabProps {
@@ -13,6 +15,7 @@ interface ColdEmailTabProps {
 export function ColdEmailTab({ lead }: ColdEmailTabProps) {
   const { templates, loading, error, regenerate } = useTabContent(lead.id, "cold_email");
   const template = templates[0] ?? null;
+  const [showSendModal, setShowSendModal] = useState(false);
 
   if (loading) return <LoadingState label="Generating cold email" />;
   if (error)   return <ErrorState error={error} onRetry={regenerate} />;
@@ -25,6 +28,7 @@ export function ColdEmailTab({ lead }: ColdEmailTabProps) {
   };
 
   return (
+    <>
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
@@ -40,6 +44,10 @@ export function ColdEmailTab({ lead }: ColdEmailTabProps) {
           <Button variant="ghost" size="sm" onClick={regenerate}>
             <RefreshCw className="h-3.5 w-3.5" />
             Regenerate
+          </Button>
+          <Button size="sm" onClick={() => setShowSendModal(true)} disabled={!lead.email}>
+            <Send className="h-3.5 w-3.5" />
+            Send
           </Button>
         </div>
       </div>
@@ -58,8 +66,20 @@ export function ColdEmailTab({ lead }: ColdEmailTabProps) {
 
       <p className="text-xs text-text-3">
         Generated on {new Date(template.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+        {!lead.email && (
+          <span className="ml-2 text-amber-400">No email on file</span>
+        )}
       </p>
     </div>
+
+    {showSendModal && (
+      <SendEmailModal
+        lead={lead}
+        template={template}
+        onClose={() => setShowSendModal(false)}
+      />
+    )}
+    </>
   );
 }
 

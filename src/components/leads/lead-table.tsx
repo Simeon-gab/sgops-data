@@ -8,17 +8,44 @@ interface LeadTableProps {
   leads: Lead[];
   loading?: boolean;
   onSelect?: (lead: Lead) => void;
+  selectedIds?: Set<string>;
+  onToggle?: (id: string) => void;
+  onToggleAll?: () => void;
 }
 
-export function LeadTable({ leads, loading, onSelect }: LeadTableProps) {
+export function LeadTable({
+  leads,
+  loading,
+  onSelect,
+  selectedIds,
+  onToggle,
+  onToggleAll,
+}: LeadTableProps) {
+  const multiSelectEnabled = !!(onToggle && selectedIds);
+  const allSelected = multiSelectEnabled && leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
+  const someSelected = multiSelectEnabled && leads.some((l) => selectedIds.has(l.id));
+
+  const HEADERS = [
+    ...(multiSelectEnabled ? [""] : []),
+    "Business",
+    "Location",
+    "Contact",
+    "Rating",
+    "Score",
+    "Quality",
+  ];
+
   if (loading) {
     return (
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-bg-3">
-              {["Business", "Location", "Contact", "Rating", "Score", "Quality"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
+              {HEADERS.map((h, i) => (
+                <th
+                  key={i}
+                  className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider"
+                >
                   {h}
                 </th>
               ))}
@@ -27,7 +54,7 @@ export function LeadTable({ leads, loading, onSelect }: LeadTableProps) {
           <tbody>
             {Array.from({ length: 8 }).map((_, i) => (
               <tr key={i} className="border-b border-border/50">
-                {Array.from({ length: 6 }).map((_, j) => (
+                {HEADERS.map((_, j) => (
                   <td key={j} className="px-4 py-3">
                     <div className="h-4 bg-bg-3 rounded animate-pulse" />
                   </td>
@@ -53,103 +80,123 @@ export function LeadTable({ leads, loading, onSelect }: LeadTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-bg-3">
-            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
-              Business
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
-              Location
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
-              Contact
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider whitespace-nowrap">
-              Rating
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider whitespace-nowrap">
-              Score
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
-              Quality
-            </th>
+            {multiSelectEnabled && (
+              <th className="px-4 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                  onChange={onToggleAll}
+                  className="rounded border-border bg-bg-3 text-gold focus:ring-gold cursor-pointer"
+                  aria-label="Select all"
+                />
+              </th>
+            )}
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">Business</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">Location</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">Contact</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider whitespace-nowrap">Rating</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider whitespace-nowrap">Score</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">Quality</th>
           </tr>
         </thead>
         <tbody>
-          {leads.map((lead, i) => (
-            <tr
-              key={lead.id ?? i}
-              onClick={() => onSelect?.(lead)}
-              className="border-b border-border/50 last:border-0 hover:bg-bg-3/50 transition-colors cursor-pointer"
-            >
-              <td className="px-4 py-3">
-                <p className="font-medium text-text-1">{lead.name}</p>
-                <p className="text-xs text-text-3 mt-0.5">{lead.niche_label}</p>
-              </td>
-
-              <td className="px-4 py-3">
-                <p className="text-text-2">{lead.city}, {lead.state}</p>
-                <p className="text-xs text-text-3">{lead.country}</p>
-              </td>
-
-              <td className="px-4 py-3">
-                <div className="space-y-1">
-                  {lead.phone_formatted ? (
-                    <div className="flex items-center gap-1.5 text-xs text-text-2">
-                      <Phone className="h-3 w-3 shrink-0 text-text-3" />
-                      <span>{lead.phone_formatted}</span>
-                    </div>
-                  ) : null}
-                  {lead.email ? (
-                    <div className="flex items-center gap-1.5 text-xs text-text-2">
-                      <Mail className="h-3 w-3 shrink-0 text-text-3" />
-                      <span className="truncate max-w-[200px]">{lead.email}</span>
-                    </div>
-                  ) : null}
-                  {lead.website ? (
-                    <div className="flex items-center gap-1.5 text-xs text-text-2">
-                      <Globe className="h-3 w-3 shrink-0 text-text-3" />
-                      <a
-                        href={lead.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="truncate max-w-[200px] hover:text-gold transition-colors"
-                      >
-                        {lead.website.replace(/https?:\/\/(www\.)?/, "")}
-                      </a>
-                    </div>
-                  ) : null}
-                  {!lead.phone_formatted && !lead.email && !lead.website && (
-                    <span className="text-xs text-text-3">No contact info</span>
-                  )}
-                </div>
-              </td>
-
-              <td className="px-4 py-3">
-                {lead.rating != null ? (
-                  <div>
-                    <div className="flex items-center gap-1">
-                      <Star className="h-3.5 w-3.5 text-gold fill-gold" />
-                      <span className="text-sm font-medium text-text-1">{lead.rating}</span>
-                    </div>
-                    <p className="text-xs text-text-3">{lead.review_count.toLocaleString()} reviews</p>
-                  </div>
-                ) : (
-                  <span className="text-xs text-text-3">No rating</span>
+          {leads.map((lead, i) => {
+            const isSelected = multiSelectEnabled && selectedIds.has(lead.id);
+            return (
+              <tr
+                key={lead.id ?? i}
+                onClick={() => onSelect?.(lead)}
+                className={`border-b border-border/50 last:border-0 hover:bg-bg-3/50 transition-colors cursor-pointer ${
+                  isSelected ? "bg-gold/5" : ""
+                }`}
+              >
+                {multiSelectEnabled && (
+                  <td
+                    className="px-4 py-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggle(lead.id)}
+                      className="rounded border-border bg-bg-3 text-gold focus:ring-gold cursor-pointer"
+                      aria-label={`Select ${lead.name}`}
+                    />
+                  </td>
                 )}
-              </td>
 
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <TierBadge tier={lead.tier} />
-                  <span className="text-xs font-mono text-text-3">{lead.score}</span>
-                </div>
-              </td>
+                <td className="px-4 py-3">
+                  <p className="font-medium text-text-1">{lead.name}</p>
+                  <p className="text-xs text-text-3 mt-0.5">{lead.niche_label}</p>
+                </td>
 
-              <td className="px-4 py-3">
-                <QualityBadge quality={lead.data_quality} />
-              </td>
-            </tr>
-          ))}
+                <td className="px-4 py-3">
+                  <p className="text-text-2">{lead.city}, {lead.state}</p>
+                  <p className="text-xs text-text-3">{lead.country}</p>
+                </td>
+
+                <td className="px-4 py-3">
+                  <div className="space-y-1">
+                    {lead.phone_formatted ? (
+                      <div className="flex items-center gap-1.5 text-xs text-text-2">
+                        <Phone className="h-3 w-3 shrink-0 text-text-3" />
+                        <span>{lead.phone_formatted}</span>
+                      </div>
+                    ) : null}
+                    {lead.email ? (
+                      <div className="flex items-center gap-1.5 text-xs text-text-2">
+                        <Mail className="h-3 w-3 shrink-0 text-text-3" />
+                        <span className="truncate max-w-[200px]">{lead.email}</span>
+                      </div>
+                    ) : null}
+                    {lead.website ? (
+                      <div className="flex items-center gap-1.5 text-xs text-text-2">
+                        <Globe className="h-3 w-3 shrink-0 text-text-3" />
+                        <a
+                          href={lead.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="truncate max-w-[200px] hover:text-gold transition-colors"
+                        >
+                          {lead.website.replace(/https?:\/\/(www\.)?/, "")}
+                        </a>
+                      </div>
+                    ) : null}
+                    {!lead.phone_formatted && !lead.email && !lead.website && (
+                      <span className="text-xs text-text-3">No contact info</span>
+                    )}
+                  </div>
+                </td>
+
+                <td className="px-4 py-3">
+                  {lead.rating != null ? (
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5 text-gold fill-gold" />
+                        <span className="text-sm font-medium text-text-1">{lead.rating}</span>
+                      </div>
+                      <p className="text-xs text-text-3">{lead.review_count.toLocaleString()} reviews</p>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-text-3">No rating</span>
+                  )}
+                </td>
+
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <TierBadge tier={lead.tier} />
+                    <span className="text-xs font-mono text-text-3">{lead.score}</span>
+                  </div>
+                </td>
+
+                <td className="px-4 py-3">
+                  <QualityBadge quality={lead.data_quality} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

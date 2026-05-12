@@ -1,16 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { useLeads } from "@/hooks/useLeads";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
+import { BatchSendBar } from "@/components/outreach/batch-send-bar";
 import type { Lead } from "@/lib/utils/types";
 
 export default function LeadsPage() {
   const { leads, loading, error, refetch } = useLeads(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const selectedLeads = leads.filter((l) => selectedIds.has(l.id));
+
+  const handleToggle = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleAll = useCallback(() => {
+    const allSelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(leads.map((l) => l.id)));
+    }
+  }, [leads, selectedIds]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   return (
     <div className="max-w-full">
@@ -35,10 +59,7 @@ export default function LeadsPage() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
           <p className="text-sm text-red-400">{error}</p>
-          <button
-            onClick={refetch}
-            className="text-xs text-red-400 underline mt-1"
-          >
+          <button onClick={refetch} className="text-xs text-red-400 underline mt-1">
             Retry
           </button>
         </div>
@@ -67,6 +88,9 @@ export default function LeadsPage() {
           leads={leads}
           loading={loading}
           onSelect={setSelectedLead}
+          selectedIds={selectedIds}
+          onToggle={handleToggle}
+          onToggleAll={handleToggleAll}
         />
       )}
 
@@ -74,10 +98,17 @@ export default function LeadsPage() {
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
         onLeadUpdated={(updated) => {
-          // Keep the panel showing the fresh lead
           setSelectedLead(updated);
         }}
       />
+
+      {selectedIds.size > 0 && (
+        <BatchSendBar
+          selectedLeads={selectedLeads}
+          onClear={clearSelection}
+          onSent={refetch}
+        />
+      )}
     </div>
   );
 }
