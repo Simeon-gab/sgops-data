@@ -1,28 +1,66 @@
 "use client";
 
-import { useState } from "react";
-import { Settings, Building2, Globe, Phone, Mail, Image } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Building2, Image } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import type { Workspace } from "@/lib/utils/types";
 
 export default function SettingsPage() {
-  const [saving, setSaving] = useState(false);
-  const [agencyName, setAgencyName] = useState("");
-  const [agencyEmail, setAgencyEmail] = useState("");
-  const [agencyPhone, setAgencyPhone] = useState("");
+  const [workspace, setWorkspace]       = useState<Workspace | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [saving, setSaving]             = useState(false);
+
+  const [agencyName,  setAgencyName]    = useState("");
+  const [agencyEmail, setAgencyEmail]   = useState("");
+  const [agencyPhone, setAgencyPhone]   = useState("");
   const [agencyWebsite, setAgencyWebsite] = useState("");
   const [portfolioUrl, setPortfolioUrl] = useState("");
+
+  useEffect(() => {
+    fetch("/api/workspace")
+      .then((r) => r.json())
+      .then(({ workspace: ws }: { workspace: Workspace }) => {
+        setWorkspace(ws);
+        setAgencyName(ws.agency_name   ?? "");
+        setAgencyEmail(ws.agency_email  ?? "");
+        setAgencyPhone(ws.agency_phone  ?? "");
+        setAgencyWebsite(ws.agency_website ?? "");
+        setPortfolioUrl(ws.agency_portfolio_url ?? "");
+      })
+      .catch(() => toast("Failed to load settings", "error"))
+      .finally(() => setLoading(false));
+  }, []);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    // Will be wired to Supabase in Phase 6
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
+    try {
+      const res = await fetch("/api/workspace", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agency_name:          agencyName,
+          agency_email:         agencyEmail,
+          agency_phone:         agencyPhone,
+          agency_website:       agencyWebsite,
+          agency_portfolio_url: portfolioUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      setWorkspace(data.workspace);
+      toast("Settings saved", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Save failed", "error");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto animate-fade-up">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-text-1">Settings</h2>
         <p className="text-text-3 mt-1">Manage your agency profile and workspace</p>
@@ -40,57 +78,73 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="flex flex-col gap-4">
-          <Input
-            label="Agency name"
-            placeholder="Creative Co."
-            value={agencyName}
-            onChange={(e) => setAgencyName(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Agency email"
-              type="email"
-              placeholder="hello@agency.com"
-              value={agencyEmail}
-              onChange={(e) => setAgencyEmail(e.target.value)}
-            />
-            <Input
-              label="Phone"
-              type="tel"
-              placeholder="+1 (555) 000-0000"
-              value={agencyPhone}
-              onChange={(e) => setAgencyPhone(e.target.value)}
-            />
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="h-3 w-24 bg-bg-3 rounded animate-pulse" />
+                <div className="h-10 w-full bg-bg-3 rounded-lg animate-pulse" />
+              </div>
+            ))}
           </div>
-          <Input
-            label="Website"
-            type="url"
-            placeholder="https://agency.com"
-            value={agencyWebsite}
-            onChange={(e) => setAgencyWebsite(e.target.value)}
-          />
-          <Input
-            label="Portfolio URL"
-            type="url"
-            placeholder="https://agency.com/work"
-            value={portfolioUrl}
-            onChange={(e) => setPortfolioUrl(e.target.value)}
-            hint="Included in cold email CTAs"
-          />
+        ) : (
+          <form onSubmit={handleSave} className="flex flex-col gap-4">
+            <Input
+              label="Agency name"
+              placeholder="Creative Co."
+              value={agencyName}
+              onChange={(e) => setAgencyName(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Agency email"
+                type="email"
+                placeholder="hello@agency.com"
+                value={agencyEmail}
+                onChange={(e) => setAgencyEmail(e.target.value)}
+              />
+              <Input
+                label="Phone"
+                type="tel"
+                placeholder="+1 (555) 000-0000"
+                value={agencyPhone}
+                onChange={(e) => setAgencyPhone(e.target.value)}
+              />
+            </div>
+            <Input
+              label="Website"
+              type="url"
+              placeholder="https://agency.com"
+              value={agencyWebsite}
+              onChange={(e) => setAgencyWebsite(e.target.value)}
+            />
+            <Input
+              label="Portfolio URL"
+              type="url"
+              placeholder="https://agency.com/work"
+              value={portfolioUrl}
+              onChange={(e) => setPortfolioUrl(e.target.value)}
+              hint="Included in cold email CTAs"
+            />
 
-          <div className="flex justify-end mt-2">
-            <Button type="submit" loading={saving}>
-              Save changes
-            </Button>
-          </div>
-        </form>
+            <div className="flex items-center justify-between pt-2">
+              {workspace && (
+                <p className="text-xs text-text-3">
+                  Workspace: <span className="text-text-2">{workspace.name}</span>
+                </p>
+              )}
+              <Button type="submit" loading={saving} className="ml-auto">
+                Save changes
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Placeholder sections */}
       {[
         { icon: Settings, title: "Integrations", desc: "Connect Google Places, SerpAPI, Hunter.io" },
-        { icon: Image, title: "Branding", desc: "Upload your logo for proposals and emails" },
+        { icon: Image,    title: "Branding",     desc: "Upload your logo for proposals and emails" },
       ].map(({ icon: Icon, title, desc }) => (
         <div key={title} className="bg-bg-2 border border-border rounded-2xl p-6 mb-4 opacity-50">
           <div className="flex items-center gap-3">

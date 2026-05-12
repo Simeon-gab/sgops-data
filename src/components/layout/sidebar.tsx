@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
 import {
+  LayoutDashboard,
   Search,
   Users,
   Kanban,
@@ -17,11 +18,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/prospect", icon: Search, label: "Prospect" },
-  { href: "/leads", icon: Users, label: "Leads" },
-  { href: "/pipeline", icon: Kanban, label: "Pipeline" },
-  { href: "/data-quality", icon: ShieldCheck, label: "Data Quality" },
-  { href: "/outreach", icon: Mail, label: "Outreach" },
+  { href: "/dashboard",    icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/prospect",     icon: Search,          label: "Prospect" },
+  { href: "/leads",        icon: Users,           label: "Leads" },
+  { href: "/pipeline",     icon: Kanban,          label: "Pipeline" },
+  { href: "/data-quality", icon: ShieldCheck,     label: "Data Quality" },
+  { href: "/outreach",     icon: Mail,            label: "Outreach" },
 ];
 
 const BOTTOM_ITEMS = [
