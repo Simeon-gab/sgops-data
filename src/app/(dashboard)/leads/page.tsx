@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { useLeads } from "@/hooks/useLeads";
 import { LeadTable } from "@/components/leads/lead-table";
+import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
+import type { Lead } from "@/lib/utils/types";
 
 export default function LeadsPage() {
   const { leads, loading, error, refetch } = useLeads(true);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   return (
     <div className="max-w-full">
@@ -59,8 +63,17 @@ export default function LeadsPage() {
           </Link>
         </div>
       ) : (
-        <LeadTable leads={leads} loading={loading} />
+        <LeadTable
+          leads={leads}
+          loading={loading}
+          onSelect={setSelectedLead}
+        />
       )}
+
+      <LeadDetailPanel
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+      />
     </div>
   );
 }
