@@ -1,22 +1,23 @@
 "use client";
 
 import { Star, Phone, Mail, Globe } from "lucide-react";
-import { QualityBadge } from "@/components/ui/badge";
+import { QualityBadge, TierBadge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/utils/types";
 
 interface LeadTableProps {
   leads: Lead[];
   loading?: boolean;
+  onSelect?: (lead: Lead) => void;
 }
 
-export function LeadTable({ leads, loading }: LeadTableProps) {
+export function LeadTable({ leads, loading, onSelect }: LeadTableProps) {
   if (loading) {
     return (
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-bg-3">
-              {["Business", "Location", "Contact", "Rating", "Quality"].map((h) => (
+              {["Business", "Location", "Contact", "Rating", "Score", "Quality"].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
                   {h}
                 </th>
@@ -26,7 +27,7 @@ export function LeadTable({ leads, loading }: LeadTableProps) {
           <tbody>
             {Array.from({ length: 8 }).map((_, i) => (
               <tr key={i} className="border-b border-border/50">
-                {Array.from({ length: 5 }).map((_, j) => (
+                {Array.from({ length: 6 }).map((_, j) => (
                   <td key={j} className="px-4 py-3">
                     <div className="h-4 bg-bg-3 rounded animate-pulse" />
                   </td>
@@ -64,6 +65,9 @@ export function LeadTable({ leads, loading }: LeadTableProps) {
             <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider whitespace-nowrap">
               Rating
             </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider whitespace-nowrap">
+              Score
+            </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-3 uppercase tracking-wider">
               Quality
             </th>
@@ -73,7 +77,8 @@ export function LeadTable({ leads, loading }: LeadTableProps) {
           {leads.map((lead, i) => (
             <tr
               key={lead.id ?? i}
-              className="border-b border-border/50 last:border-0 hover:bg-bg-3/50 transition-colors"
+              onClick={() => onSelect?.(lead)}
+              className="border-b border-border/50 last:border-0 hover:bg-bg-3/50 transition-colors cursor-pointer"
             >
               <td className="px-4 py-3">
                 <p className="font-medium text-text-1">{lead.name}</p>
@@ -131,6 +136,13 @@ export function LeadTable({ leads, loading }: LeadTableProps) {
                 ) : (
                   <span className="text-xs text-text-3">No rating</span>
                 )}
+              </td>
+
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <TierBadge tier={lead.tier} />
+                  <span className="text-xs font-mono text-text-3">{lead.score}</span>
+                </div>
               </td>
 
               <td className="px-4 py-3">
