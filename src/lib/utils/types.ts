@@ -204,6 +204,17 @@ export interface CleanedExportRecord {
   quality_issues: string;
 }
 
+export interface LeadFilters {
+  q?: string;
+  niche?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  tier?: string;
+  stage?: string;
+  quality?: string;
+}
+
 export interface ApiError {
   error: string;
   code: string;
