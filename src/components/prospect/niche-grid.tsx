@@ -39,7 +39,7 @@ export function NicheGrid({ selected, onSelect }: NicheGridProps) {
         {filtered.length === 0 ? (
           <p className="text-sm text-text-3 text-center py-6">No niches found</p>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
             {filtered.map((niche) => {
               const isSelected = selected === niche.id;
               return (
@@ -47,14 +47,14 @@ export function NicheGrid({ selected, onSelect }: NicheGridProps) {
                   key={niche.id}
                   type="button"
                   onClick={() => onSelect(niche.id)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
+                  className={`flex flex-col items-center gap-1 sm:gap-1.5 p-2 sm:p-3 rounded-xl border text-center transition-all ${
                     isSelected
                       ? "border-gold bg-gold-dim text-gold"
                       : "border-border bg-bg-2 text-text-2 hover:border-border-hover hover:bg-bg-3"
                   }`}
                 >
-                  <span className="text-2xl leading-none">{niche.icon}</span>
-                  <span className="text-xs font-medium leading-tight line-clamp-2">
+                  <span className="text-xl sm:text-2xl leading-none">{niche.icon}</span>
+                  <span className="text-[11px] sm:text-xs font-medium leading-tight line-clamp-2">
                     {niche.label}
                   </span>
                 </button>

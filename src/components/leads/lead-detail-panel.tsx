@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, ChevronLeft } from "lucide-react";
 import { clsx } from "clsx";
 import { TierBadge, StageBadge } from "@/components/ui/badge";
 import { OverviewTab }    from "./tabs/overview-tab";
@@ -103,22 +103,34 @@ export function LeadDetailPanel({ lead, onClose, onLeadUpdated }: LeadDetailPane
         {currentLead && (
           <>
             {/* Header */}
-            <div className="shrink-0 flex items-start justify-between gap-4 px-6 py-4 border-b border-border bg-bg-2">
+            <div className="shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 border-b border-border bg-bg-2">
+              {/* Mobile back button */}
+              <button
+                onClick={onClose}
+                className="md:hidden flex items-center gap-1 text-sm text-text-3 hover:text-text-1 transition-colors shrink-0"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Back</span>
+              </button>
+
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-base font-semibold text-text-1 truncate">
+                  <h2 className="text-sm md:text-base font-semibold text-text-1 truncate">
                     {currentLead.name}
                   </h2>
                   <TierBadge tier={currentLead.tier} />
                   <StageBadge stage={currentLead.stage} />
                 </div>
                 <p className="text-xs text-text-3 mt-0.5 truncate">
-                  {currentLead.niche_label} · {currentLead.city}, {currentLead.state}, {currentLead.country}
+                  {currentLead.niche_label} · {currentLead.city}, {currentLead.state}
                 </p>
               </div>
+
+              {/* Desktop close button */}
               <button
                 onClick={onClose}
-                className="shrink-0 p-1.5 rounded-lg text-text-3 hover:text-text-1 hover:bg-bg-3 transition-colors"
+                className="hidden md:flex shrink-0 p-1.5 rounded-lg text-text-3 hover:text-text-1 hover:bg-bg-3 transition-colors"
                 aria-label="Close panel"
               >
                 <X className="h-4 w-4" />

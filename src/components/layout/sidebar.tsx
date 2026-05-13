@@ -17,6 +17,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
+interface SidebarProps {
+  onClose?: () => void;
+}
+
 const NAV_ITEMS = [
   { href: "/dashboard",    icon: LayoutDashboard, label: "Dashboard" },
   { href: "/prospect",     icon: Search,          label: "Prospect" },
@@ -30,7 +34,7 @@ const BOTTOM_ITEMS = [
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -41,7 +45,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col bg-bg-1 border-r border-border h-screen sticky top-0">
+    <aside className="w-60 h-full flex flex-col bg-bg-1 border-r border-border">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-border">
         <div className="flex items-center gap-2.5">
@@ -63,6 +67,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={clsx(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
                 active
@@ -85,6 +90,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={clsx(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
                 active

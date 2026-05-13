@@ -52,7 +52,7 @@ export function LocationSelector({ country, state, city, onChange }: LocationSel
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Select
         label="Country"
         value={country}
