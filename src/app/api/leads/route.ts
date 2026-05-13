@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
+import { applyLeadFilters } from "@/lib/supabase/lead-filters";
 import type { Lead, ApiError } from "@/lib/utils/types";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createClient();
 
   const {
@@ -22,11 +23,17 @@ export async function GET() {
     return NextResponse.json({ leads: [], total: 0 });
   }
 
-  const { data: leads, error } = await supabase
+  const { searchParams } = new URL(request.url);
+
+  let query = supabase
     .from("leads")
     .select("*")
-    .eq("workspace_id", workspace.id)
-    .order("created_at", { ascending: false });
+    .eq("workspace_id", workspace.id);
+
+  query = applyLeadFilters(query, searchParams);
+  query = query.order("score", { ascending: false });
+
+  const { data: leads, error } = await query;
 
   if (error) {
     return NextResponse.json<ApiError>(
