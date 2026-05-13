@@ -7,6 +7,7 @@ import { useLeads } from "@/hooks/useLeads";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
 import { BatchSendBar } from "@/components/outreach/batch-send-bar";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { toast } from "@/components/ui/toast";
 import type { Lead } from "@/lib/utils/types";
 
@@ -122,13 +123,15 @@ export default function LeadsPage() {
         />
       )}
 
-      <LeadDetailPanel
-        lead={selectedLead}
-        onClose={() => setSelectedLead(null)}
-        onLeadUpdated={(updated) => {
-          setSelectedLead(updated);
-        }}
-      />
+      <ErrorBoundary label="Lead detail panel">
+        <LeadDetailPanel
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onLeadUpdated={(updated) => {
+            setSelectedLead(updated);
+          }}
+        />
+      </ErrorBoundary>
 
       {selectedIds.size > 0 && (
         <BatchSendBar
