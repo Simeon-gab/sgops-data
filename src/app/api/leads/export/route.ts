@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import type { Lead, CleanedExportRecord, ApiError } from "@/lib/utils/types";
 
 function toExportRecord(lead: Lead): CleanedExportRecord {
@@ -68,16 +69,11 @@ export async function GET() {
     );
   }
 
-  const { data: workspace, error: wsError } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (wsError || !workspace) {
+  const workspace = await getOrCreateWorkspace(supabase, user);
+  if (!workspace) {
     return NextResponse.json<ApiError>(
-      { error: "Workspace not found", code: "workspace_not_found" },
-      { status: 404 }
+      { error: "Could not initialize workspace", code: "workspace_error" },
+      { status: 500 }
     );
   }
 

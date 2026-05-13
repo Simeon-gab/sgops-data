@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import type { OutreachSend, ApiError } from "@/lib/utils/types";
 
 // ── GET /api/email/sends ──────────────────────────────────────────────────────
@@ -16,13 +17,8 @@ export async function GET() {
     );
   }
 
-  const { data: workspace, error: wsError } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (wsError || !workspace) {
+  const workspace = await getOrCreateWorkspace(supabase, user);
+  if (!workspace) {
     return NextResponse.json({ sends: [] });
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import type { Lead, ApiError } from "@/lib/utils/types";
 
 export async function GET() {
@@ -16,12 +17,7 @@ export async function GET() {
     );
   }
 
-  const { data: workspace } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
+  const workspace = await getOrCreateWorkspace(supabase, user);
   if (!workspace) {
     return NextResponse.json({ leads: [], total: 0 });
   }
