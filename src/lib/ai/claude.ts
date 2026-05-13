@@ -13,7 +13,7 @@ export const TOKEN_BUDGETS = {
   cold_email:        600,
   call_script:       1000,
   follow_up_sequence: 800,
-  content_plan:      1500,
+  content_plan:      2500,
   lead_intelligence:  300,
   proposal:          1200,
   batch_email:        500,
