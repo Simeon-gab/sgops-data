@@ -14,6 +14,7 @@ interface LocationSelectorProps {
 export function LocationSelector({ country, state, city, onChange }: LocationSelectorProps) {
   const countryData = COUNTRIES.find((c) => c.code === country);
   const states = countryData?.states ?? [];
+  const stateListId = country ? `state-suggestions-${country}` : undefined;
 
   const handleCountryChange = (value: string) => {
     onChange("country", value);
@@ -21,22 +22,9 @@ export function LocationSelector({ country, state, city, onChange }: LocationSel
     onChange("city", "");
   };
 
-  const handleStateChange = (value: string) => {
-    onChange("state", value);
-    const stateData = COUNTRIES
-      .find((c) => c.code === country)
-      ?.states.find((s) => s.code === value);
-    onChange("city", stateData?.cities[0]?.name ?? "");
-  };
-
   const countryOptions = [
     { value: "", label: "Select country..." },
     ...COUNTRIES.map((c) => ({ value: c.code, label: `${c.flag} ${c.name}` })),
-  ];
-
-  const stateOptions = [
-    { value: "", label: "Select state..." },
-    ...states.map((s) => ({ value: s.code, label: s.name })),
   ];
 
   return (
@@ -47,19 +35,35 @@ export function LocationSelector({ country, state, city, onChange }: LocationSel
         onChange={(e) => handleCountryChange(e.target.value)}
         options={countryOptions}
       />
-      <Select
-        label="State / Region"
-        value={state}
-        onChange={(e) => handleStateChange(e.target.value)}
-        options={stateOptions}
-        disabled={!country}
-      />
+
+      {/* Free-text state with datalist suggestions where available */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-text-2">State / Region</label>
+        <input
+          type="text"
+          list={stateListId}
+          value={state}
+          onChange={(e) => onChange("state", e.target.value)}
+          placeholder={states.length > 0 ? "Type or pick..." : "e.g. Lagos"}
+          disabled={!country}
+          className="w-full bg-bg-2 border border-border rounded-lg px-3 py-2 text-sm text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-gold focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        {stateListId && states.length > 0 && (
+          <datalist id={stateListId}>
+            {states.map((s) => (
+              <option key={s.code} value={s.name} />
+            ))}
+          </datalist>
+        )}
+      </div>
+
+      {/* Always free-text city / area */}
       <Input
-        label="City"
+        label="City / Area"
         value={city}
         onChange={(e) => onChange("city", e.target.value)}
-        placeholder="e.g. Lagos"
-        disabled={!state}
+        placeholder="e.g. Victoria Island, Lagos"
+        disabled={!country}
       />
     </div>
   );
