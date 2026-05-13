@@ -14,7 +14,7 @@ export default function PipelinePage() {
 
   return (
     // -m-6 + p-6 gives us full-bleed control; flex-col + h-full fills the viewport
-    <div className="flex flex-col gap-4 h-full -m-6 p-6 overflow-hidden">
+    <div className="flex flex-col gap-4 md:h-full md:-m-6 md:p-6 md:overflow-hidden">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between">
         <div>
@@ -54,16 +54,16 @@ export default function PipelinePage() {
 
       {/* Kanban board — fills remaining height */}
       {loading ? (
-        <div className="flex-1 flex gap-3 overflow-x-auto">
+        <div className="flex flex-col gap-3 md:flex-1 md:flex-row md:overflow-x-auto">
           {Array.from({ length: 7 }).map((_, i) => (
             <div
               key={i}
-              className="shrink-0 w-56 rounded-xl border border-border bg-bg-2 animate-pulse"
+              className="w-full md:w-56 md:shrink-0 h-32 rounded-xl border border-border bg-bg-2 animate-pulse"
             />
           ))}
         </div>
       ) : (
-        <div className="flex-1 min-h-0">
+        <div className="md:flex-1 md:min-h-0">
           <PipelineBoard groups={groups} onCardClick={setSelectedLead} />
         </div>
       )}

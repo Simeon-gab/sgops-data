@@ -71,7 +71,7 @@ export function ProspectForm({ onSubmit, loading }: ProspectFormProps) {
               key={count}
               type="button"
               onClick={() => setResultCount(count)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium border transition-all ${
                 resultCount === count
                   ? "border-gold bg-gold-dim text-gold"
                   : "border-border bg-bg-2 text-text-2 hover:border-border-hover hover:bg-bg-3"

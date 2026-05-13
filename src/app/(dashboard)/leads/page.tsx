@@ -56,9 +56,9 @@ export default function LeadsPage() {
 
   return (
     <div className="max-w-full">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-text-1">Leads</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-text-1">Leads</h2>
           <p className="text-text-3 mt-1">
             {loading
               ? "Loading leads..."

@@ -12,7 +12,7 @@ interface PipelineBoardProps {
 
 export function PipelineBoard({ groups, onCardClick }: PipelineBoardProps) {
   return (
-    <div className="flex gap-3 h-full overflow-x-auto pb-2">
+    <div className="flex flex-col gap-3 md:flex-row md:h-full md:overflow-x-auto md:pb-2">
       {PIPELINE_STAGES.map((stage) => (
         <PipelineColumn
           key={stage.id}
