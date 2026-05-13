@@ -46,7 +46,7 @@ export function ProspectForm({ onSubmit, loading }: ProspectFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} autoComplete="off" className="space-y-8">
       <NicheGrid selected={nicheId} onSelect={setNicheId} />
 
       <div>
