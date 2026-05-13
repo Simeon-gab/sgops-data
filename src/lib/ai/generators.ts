@@ -13,12 +13,41 @@ import type { GenerationContext } from "./prompts";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function parseJson<T>(raw: string): T {
-  const cleaned = raw
+function stripFences(raw: string): string {
+  return raw
     .replace(/^```(?:json)?\s*/m, "")
     .replace(/\s*```$/m, "")
     .trim();
-  return JSON.parse(cleaned) as T;
+}
+
+function parseJson<T>(raw: string): T {
+  return JSON.parse(stripFences(raw)) as T;
+}
+
+// Attempts to close an incomplete JSON string caused by token-limit truncation.
+// Walks the text tracking string/escape/nesting state, then closes open structures.
+function repairTruncatedJson(raw: string): string {
+  const s = stripFences(raw);
+  let inString = false;
+  let escape = false;
+  const stack: string[] = [];
+
+  for (const ch of s) {
+    if (escape)                      { escape = false; continue; }
+    if (ch === "\\" && inString)     { escape = true;  continue; }
+    if (ch === '"')                  { inString = !inString; continue; }
+    if (inString)                    continue;
+    if (ch === "{" || ch === "[")    stack.push(ch);
+    else if (ch === "}" || ch === "]") { if (stack.length) stack.pop(); }
+  }
+
+  let out = s.trimEnd();
+  if (inString) out += '"';
+  out = out.replace(/[,:\s]+$/, "");
+  for (let i = stack.length - 1; i >= 0; i--) {
+    out += stack[i] === "{" ? "}" : "]";
+  }
+  return out;
 }
 
 async function callClaude(
@@ -119,7 +148,20 @@ export async function generateContentPlan(
     MODELS.quality,
     TOKEN_BUDGETS.content_plan
   );
-  const plan = parseJson<Record<string, unknown>>(content);
+
+  let plan: Record<string, unknown>;
+  try {
+    plan = parseJson<Record<string, unknown>>(content);
+  } catch {
+    // Response was likely truncated at the token limit. Try closing open structures.
+    try {
+      plan = JSON.parse(repairTruncatedJson(content)) as Record<string, unknown>;
+      plan._truncated = true;
+    } catch {
+      plan = { _truncated: true };
+    }
+  }
+
   return { plan, tokensUsed };
 }
 

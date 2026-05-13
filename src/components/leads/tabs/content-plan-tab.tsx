@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, RefreshCw, Calendar, Camera, Target, DollarSign } from "lucide-react";
+import { Copy, RefreshCw, Calendar, Camera, Target, DollarSign, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTabContent } from "@/hooks/useTabContent";
 import { toast } from "@/components/ui/toast";
@@ -163,6 +163,8 @@ export function ContentPlanTab({ lead }: ContentPlanTabProps) {
   const hasStructured =
     plan && (monthKeys.length > 0 || (monthsArray && monthsArray.length > 0));
 
+  const isTruncated = plan?._truncated === true;
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -180,6 +182,18 @@ export function ContentPlanTab({ lead }: ContentPlanTabProps) {
           </Button>
         </div>
       </div>
+
+      {isTruncated && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-yellow-500/25 bg-yellow-500/8 px-3.5 py-3">
+          <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-yellow-300">Plan was partially generated</p>
+            <p className="text-xs text-yellow-400/80 mt-0.5">
+              The response was truncated. Regenerate to get the complete plan.
+            </p>
+          </div>
+        </div>
+      )}
 
       {hasStructured ? (
         <div className="space-y-5">
