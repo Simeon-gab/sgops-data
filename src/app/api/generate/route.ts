@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import { getPlaybook } from "@/lib/ai/playbooks";
 import type { PlaybookData } from "@/lib/ai/playbooks";
 import {
@@ -83,16 +84,11 @@ export async function POST(req: NextRequest) {
 
   // ── Workspace ────────────────────────────────────────────────────────────────
 
-  const { data: workspace, error: wsError } = await supabase
-    .from("workspaces")
-    .select("id, agency_name, agency_portfolio_url")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (wsError || !workspace) {
+  const workspace = await getOrCreateWorkspace(supabase, user);
+  if (!workspace) {
     return NextResponse.json<ApiError>(
-      { error: "Workspace not found", code: "workspace_not_found" },
-      { status: 404 }
+      { error: "Could not initialize workspace", code: "workspace_error" },
+      { status: 500 }
     );
   }
 

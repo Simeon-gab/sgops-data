@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import type { ApiError } from "@/lib/utils/types";
 
 const ALLOWED_FIELDS = [
@@ -21,16 +22,11 @@ export async function GET() {
     );
   }
 
-  const { data: workspace, error } = await supabase
-    .from("workspaces")
-    .select("*")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (error || !workspace) {
+  const workspace = await getOrCreateWorkspace(supabase, user);
+  if (!workspace) {
     return NextResponse.json<ApiError>(
-      { error: "Workspace not found", code: "not_found" },
-      { status: 404 }
+      { error: "Could not initialize workspace", code: "workspace_error" },
+      { status: 500 }
     );
   }
 

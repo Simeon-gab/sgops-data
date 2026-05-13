@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import { PIPELINE_STAGES } from "@/lib/utils/constants";
 import type { ApiError } from "@/lib/utils/types";
 
@@ -14,13 +15,8 @@ export async function GET() {
     );
   }
 
-  const { data: workspace, error: wsError } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (wsError || !workspace) {
+  const workspace = await getOrCreateWorkspace(supabase, user);
+  if (!workspace) {
     return NextResponse.json({ leads: emptyLeadStats(), sends: emptySendStats() });
   }
 
