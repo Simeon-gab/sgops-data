@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Search, Download, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useLeads } from "@/hooks/useLeads";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
@@ -21,20 +22,29 @@ const SELECT_CLS =
   "focus:outline-none focus:ring-2 focus:ring-gold focus:border-transparent transition-colors cursor-pointer";
 
 export default function LeadsPage() {
-  // Raw text input values (debounced before being applied as filters)
-  const [rawSearch,  setRawSearch]  = useState("");
-  const [rawCountry, setRawCountry] = useState("");
-  const [rawState,   setRawState]   = useState("");
-  const [rawCity,    setRawCity]    = useState("");
+  const searchParams = useSearchParams();
 
-  // Instant (non-debounced) select filters
-  const [niche,   setNiche]   = useState("");
+  // Raw text input values (debounced before being applied as filters).
+  // Lazy-initialized from URL params so navigating from /prospect pre-applies the search context.
+  const [rawSearch,  setRawSearch]  = useState("");
+  const [rawCountry, setRawCountry] = useState(() => searchParams.get("country") ?? "");
+  const [rawState,   setRawState]   = useState(() => searchParams.get("state")   ?? "");
+  const [rawCity,    setRawCity]    = useState(() => searchParams.get("city")    ?? "");
+
+  // Instant (non-debounced) select filters — niche can come from URL params too
+  const [niche,   setNiche]   = useState(() => searchParams.get("niche") ?? "");
   const [tier,    setTier]    = useState("");
   const [stage,   setStage]   = useState("");
   const [quality, setQuality] = useState("");
 
-  // Debounced filters sent to the hook / API
-  const [filters, setFilters] = useState<LeadFilters>({});
+  // Initialize filters directly from URL params so the first fetch is already filtered
+  // (avoids the 300ms debounce delay before showing results on direct navigation)
+  const [filters, setFilters] = useState<LeadFilters>(() => ({
+    niche:   searchParams.get("niche")   || undefined,
+    country: searchParams.get("country") || undefined,
+    state:   searchParams.get("state")   || undefined,
+    city:    searchParams.get("city")    || undefined,
+  }));
 
   useEffect(() => {
     const timer = setTimeout(() => {

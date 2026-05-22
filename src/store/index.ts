@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Lead, Workspace } from "@/lib/utils/types";
+import type { Lead, Workspace, ProspectRequest, ProspectApiResponse } from "@/lib/utils/types";
 
 interface AppState {
   workspace: Workspace | null;
@@ -11,6 +11,12 @@ interface AppState {
 
   selectedLeadId: string | null;
   setSelectedLeadId: (id: string | null) => void;
+
+  // Persists prospect page state across navigation so the back button restores it
+  prospectRequest: ProspectRequest | null;
+  prospectResult: ProspectApiResponse | null;
+  setProspectState: (request: ProspectRequest, result: ProspectApiResponse) => void;
+  clearProspectState: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -30,4 +36,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectedLeadId: null,
   setSelectedLeadId: (id) => set({ selectedLeadId: id }),
+
+  prospectRequest: null,
+  prospectResult: null,
+  setProspectState: (request, result) => set({ prospectRequest: request, prospectResult: result }),
+  clearProspectState: () => set({ prospectRequest: null, prospectResult: null }),
 }));

@@ -1,21 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle, ChevronRight, Trophy } from "lucide-react";
 import { useProspect } from "@/hooks/useProspect";
+import { useAppStore } from "@/store";
 import { ProspectForm } from "@/components/prospect/prospect-form";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
 import type { ProspectRequest, Lead } from "@/lib/utils/types";
 
 export default function ProspectPage() {
-  const { run, loading, error, result } = useProspect();
+  const { prospectRequest: storedRequest, prospectResult: storedResult, setProspectState } = useAppStore();
+
+  const { run, loading, error, result: freshResult } = useProspect();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  // Track the most recent submitted request so we can save it to the store
+  const [lastRequest, setLastRequest] = useState<ProspectRequest | null>(storedRequest);
+
+  // Show fresh result if a new search just ran, otherwise fall back to the stored one
+  const result = freshResult ?? storedResult;
+
+  // Persist to store whenever a search completes
+  useEffect(() => {
+    if (freshResult && lastRequest) {
+      setProspectState(lastRequest, freshResult);
+    }
+  // setProspectState is a stable Zustand action — intentionally excluded from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freshResult, lastRequest]);
 
   const handleSubmit = (req: ProspectRequest) => {
+    setLastRequest(req);
     run(req);
   };
+
+  // Build the "View all leads" href with niche/location pre-applied as filters.
+  // Use lead[0] for location names (already normalized to full text by the cleaner).
+  const viewAllHref = useMemo(() => {
+    if (!result || result.leads.length === 0) return "/leads";
+    const lead = result.leads[0];
+    const params = new URLSearchParams();
+    const nicheId = lastRequest?.niche_id ?? storedRequest?.niche_id;
+    if (nicheId)      params.set("niche",   nicheId);
+    if (lead.country) params.set("country", lead.country);
+    if (lead.state)   params.set("state",   lead.state);
+    if (lead.city)    params.set("city",    lead.city);
+    const qs = params.toString();
+    return qs ? `/leads?${qs}` : "/leads";
+  }, [result, lastRequest, storedRequest]);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -27,7 +60,11 @@ export default function ProspectPage() {
       </div>
 
       <div className="bg-bg-2 border border-border rounded-2xl p-6 mb-6">
-        <ProspectForm onSubmit={handleSubmit} loading={loading} />
+        <ProspectForm
+          onSubmit={handleSubmit}
+          loading={loading}
+          initialValues={storedRequest ?? undefined}
+        />
       </div>
 
       {error && (
@@ -80,7 +117,7 @@ export default function ProspectPage() {
               )}
             </div>
             <Link
-              href="/leads"
+              href={viewAllHref}
               className="flex items-center gap-1 text-sm text-gold hover:text-gold-bright transition-colors"
             >
               View all leads

@@ -11,14 +11,15 @@ import { Button } from "@/components/ui/button";
 interface ProspectFormProps {
   onSubmit: (req: ProspectRequest) => void;
   loading?: boolean;
+  initialValues?: Partial<ProspectRequest>;
 }
 
-export function ProspectForm({ onSubmit, loading }: ProspectFormProps) {
-  const [nicheId, setNicheId] = useState("");
-  const [country, setCountry] = useState("");
-  const [state, setState] = useState("");
-  const [city, setCity] = useState("");
-  const [resultCount, setResultCount] = useState<number>(50);
+export function ProspectForm({ onSubmit, loading, initialValues }: ProspectFormProps) {
+  const [nicheId, setNicheId] = useState(initialValues?.niche_id ?? "");
+  const [country, setCountry] = useState(initialValues?.country ?? "");
+  const [state, setState] = useState(initialValues?.state ?? "");
+  const [city, setCity] = useState(initialValues?.city ?? "");
+  const [resultCount, setResultCount] = useState<number>(initialValues?.result_count ?? 50);
 
   const handleLocationChange = (field: "country" | "state" | "city", value: string) => {
     if (field === "country") {
