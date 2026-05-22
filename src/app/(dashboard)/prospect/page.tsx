@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle, ChevronRight } from "lucide-react";
 import { useProspect } from "@/hooks/useProspect";
 import { ProspectForm } from "@/components/prospect/prospect-form";
 import { LeadTable } from "@/components/leads/lead-table";
-import type { ProspectRequest } from "@/lib/utils/types";
+import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
+import type { ProspectRequest, Lead } from "@/lib/utils/types";
 
 export default function ProspectPage() {
   const { run, loading, error, result } = useProspect();
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const handleSubmit = (req: ProspectRequest) => {
     run(req);
@@ -72,9 +75,17 @@ export default function ProspectPage() {
             </Link>
           </div>
 
-          <LeadTable leads={result.leads} />
+          <LeadTable leads={result.leads} onSelect={setSelectedLead} />
         </div>
       )}
+
+      <LeadDetailPanel
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+        onLeadUpdated={(updated) =>
+          setSelectedLead((prev) => (prev?.id === updated.id ? updated : prev))
+        }
+      />
     </div>
   );
 }

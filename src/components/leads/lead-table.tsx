@@ -151,7 +151,13 @@ export function LeadTable({
                       {lead.email ? (
                         <div className="flex items-center gap-1.5 text-xs text-text-2">
                           <Mail className="h-3 w-3 shrink-0 text-text-3" />
-                          <span className="truncate max-w-[200px]">{lead.email}</span>
+                          <a
+                            href={`mailto:${lead.email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="truncate max-w-[200px] hover:text-gold transition-colors"
+                          >
+                            {lead.email}
+                          </a>
                         </div>
                       ) : null}
                       {lead.website ? (
@@ -267,9 +273,17 @@ export function LeadTable({
               {(lead.email || lead.phone_formatted) && (
                 <div className="mt-2 flex items-center gap-3">
                   {lead.email && (
-                    <div className="flex items-center gap-1 text-xs text-text-3 min-w-0">
+                    <div
+                      className="flex items-center gap-1 text-xs text-text-3 min-w-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Mail className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{lead.email}</span>
+                      <a
+                        href={`mailto:${lead.email}`}
+                        className="truncate hover:text-gold transition-colors"
+                      >
+                        {lead.email}
+                      </a>
                     </div>
                   )}
                   {!lead.email && lead.phone_formatted && (
