@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Trophy } from "lucide-react";
 import type { ProspectRequest } from "@/lib/utils/types";
 import { RESULT_COUNT_OPTIONS } from "@/lib/utils/constants";
 import { NicheGrid } from "./niche-grid";
@@ -36,13 +37,12 @@ export function ProspectForm({ onSubmit, loading }: ProspectFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    onSubmit({
-      niche_id: nicheId,
-      country,
-      state,
-      city: city.trim(),
-      result_count: resultCount,
-    });
+    onSubmit({ niche_id: nicheId, country, state, city: city.trim(), result_count: resultCount });
+  };
+
+  const handleTopTen = () => {
+    if (!canSubmit) return;
+    onSubmit({ niche_id: nicheId, country, state, city: city.trim(), result_count: 10, top10_mode: true });
   };
 
   return (
@@ -86,9 +86,19 @@ export function ProspectForm({ onSubmit, loading }: ProspectFormProps) {
         </p>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 flex-wrap">
         <Button type="submit" disabled={!canSubmit} loading={loading} size="lg">
           {loading ? "Searching..." : "Find leads"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          disabled={!canSubmit || loading}
+          onClick={handleTopTen}
+        >
+          <Trophy className="h-4 w-4" />
+          Find Top 10
         </Button>
         {!nicheId && (
           <p className="text-xs text-text-3">Select a niche to continue</p>

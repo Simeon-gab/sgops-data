@@ -47,6 +47,14 @@ export function QualityBadge({ quality }: { quality: DataQuality }) {
   return <Badge variant={quality}>{labels[quality]}</Badge>;
 }
 
+export function TopRatedBadge() {
+  return (
+    <Badge className="bg-gold/10 text-gold border-gold/30 gap-1">
+      ★ Top Rated
+    </Badge>
+  );
+}
+
 export function StageBadge({ stage }: { stage: PipelineStage }) {
   const stageColors: Record<PipelineStage, string> = {
     new: "bg-amber-500/10 text-amber-400 border border-amber-500/20",

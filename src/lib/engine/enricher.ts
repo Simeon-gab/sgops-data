@@ -170,18 +170,48 @@ async function scanWebsite(rawUrl: string): Promise<WebsiteScan> {
   };
 }
 
-// ── Google Ads check via SerpAPI ──────────────────────────────────────────────
+// ── SerpAPI helpers ───────────────────────────────────────────────────────────
+
+async function serpSearch(query: string, num: number, key: string): Promise<{ organic_results?: Array<{ link?: string }>; ads?: unknown[] }> {
+  const q = encodeURIComponent(query);
+  const url = `https://serpapi.com/search.json?q=${q}&engine=google&num=${num}&api_key=${key}`;
+  const res = await withTimeout(url, 5_000);
+  if (!res.ok) return {};
+  return res.json() as Promise<{ organic_results?: Array<{ link?: string }>; ads?: unknown[] }>;
+}
 
 async function checkGoogleAds(name: string, city: string, key: string): Promise<boolean> {
   try {
-    const q = encodeURIComponent(`${name} ${city}`);
-    const url = `https://serpapi.com/search.json?q=${q}&engine=google&num=5&api_key=${key}`;
-    const res = await withTimeout(url, 5_000);
-    if (!res.ok) return false;
-    const data = (await res.json()) as { ads?: unknown[] };
+    const data = await serpSearch(`${name} ${city}`, 5, key);
     return Array.isArray(data.ads) && data.ads.length > 0;
   } catch {
     return false;
+  }
+}
+
+// Search Google for a business's social profile on a specific platform.
+// Returns the profile if the top 3 results contain a matching URL.
+async function searchSocialProfile(
+  name: string,
+  city: string,
+  platform: "instagram" | "facebook",
+  key: string
+): Promise<SocialProfile | null> {
+  try {
+    const data = await serpSearch(`${name} ${city} ${platform}`, 3, key);
+    const pattern = SOCIAL_PATTERNS.find((p) => p.platform === platform);
+    if (!pattern) return null;
+    for (const result of data.organic_results?.slice(0, 3) ?? []) {
+      if (!result.link) continue;
+      const m = result.link.match(pattern.re);
+      if (!m) continue;
+      const slug = m[1].replace(/[/\s]+$/, "");
+      if (!slug || slug.length < 2 || SOCIAL_SLUG_BLOCKLIST.has(slug.toLowerCase())) continue;
+      return { platform, url: result.link, followers: null, posts_per_week: null };
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -195,21 +225,37 @@ export async function enrichLead(
 
   const [scan, googleAds] = await Promise.all([
     url ? scanWebsite(url) : Promise.resolve(null),
-    url && options.serpApiKey
+    options.serpApiKey
       ? checkGoogleAds(record.name, record.address.city, options.serpApiKey)
       : Promise.resolve(false),
   ]);
 
+  // Secondary social detection: search for platforms not already found on the website.
+  // Skipped gracefully when no SerpAPI key is configured.
+  let extraSocials: SocialProfile[] = [];
+  if (options.serpApiKey) {
+    const foundPlatforms = new Set((scan?.social_profiles ?? []).map((p) => p.platform));
+    const missing = (["instagram", "facebook"] as const).filter((p) => !foundPlatforms.has(p));
+    if (missing.length > 0) {
+      const found = await Promise.all(
+        missing.map((p) =>
+          searchSocialProfile(record.name, record.address.city, p, options.serpApiKey!)
+        )
+      );
+      extraSocials = found.filter((p): p is SocialProfile => p !== null);
+    }
+  }
+
   return {
-    has_video_content:  scan?.has_video_content  ?? false,
-    has_blog:           scan?.has_blog           ?? false,
-    website_quality:    url ? (scan?.website_quality ?? "minimal") : null,
-    social_profiles:    scan?.social_profiles    ?? [],
-    runs_google_ads:    googleAds,
-    runs_meta_ads:      false, // Requires Facebook Marketing API — deferred
-    competitors:        options.competitors       ?? [],
-    years_in_business:  scan?.years_in_business  ?? null,
-    estimated_employees: null, // Requires LinkedIn/data-provider API — deferred
-    business_signals:   scan?.business_signals   ?? [],
+    has_video_content:   scan?.has_video_content  ?? false,
+    has_blog:            scan?.has_blog           ?? false,
+    website_quality:     url ? (scan?.website_quality ?? "minimal") : null,
+    social_profiles:     [...(scan?.social_profiles ?? []), ...extraSocials],
+    runs_google_ads:     googleAds,
+    runs_meta_ads:       false,
+    competitors:         options.competitors       ?? [],
+    years_in_business:   scan?.years_in_business  ?? null,
+    estimated_employees: null,
+    business_signals:    scan?.business_signals   ?? [],
   };
 }

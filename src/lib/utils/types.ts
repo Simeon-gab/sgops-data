@@ -107,6 +107,7 @@ export interface ProspectRequest {
   state: string;
   city: string;
   result_count: number;
+  top10_mode?: boolean;
 }
 
 export interface OutreachTemplate {
@@ -280,6 +281,7 @@ export interface CleanBusinessRecord {
 export interface ProspectApiResponse {
   leads: Lead[];
   demo_mode: boolean;
+  top10_mode: boolean;
   total_extracted: number;
   duplicates_skipped: number;
   search_id: string | null;

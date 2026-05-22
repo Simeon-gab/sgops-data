@@ -31,7 +31,13 @@ export async function runProspector(req: ProspectRequest): Promise<ProspectResul
     country_code: countryCode,
   };
 
+  // Composite score for top-10 ranking: favours high rating with meaningful review volume
+  const topScore = (r: { rating: number | null; review_count: number | null }) =>
+    (r.rating ?? 0) * Math.log((r.review_count ?? 0) + 2);
+
   if (isDemoMode) {
+    // Generate extra candidates in top10 mode so ranking has material to work with
+    const genCount = req.top10_mode ? Math.max(req.result_count * 2, 20) : req.result_count;
     const raw = generateMockBusinesses(
       req.niche_id,
       req.city,
@@ -41,25 +47,30 @@ export async function runProspector(req: ProspectRequest): Promise<ProspectResul
       dialCode,
       coords.lat,
       coords.lng,
-      req.result_count
+      genCount
     );
-    return {
-      records: cleanBusinessRecords(raw, cleanerCtx),
-      demo_mode: true,
-    };
+    let records = cleanBusinessRecords(raw, cleanerCtx);
+    if (req.top10_mode) {
+      records = records
+        .sort((a, b) => topScore(b) - topScore(a))
+        .slice(0, 10);
+    }
+    return { records, demo_mode: true };
   }
 
-  // Real API mode
+  // Real API mode — fetch extra candidates for top10 so ranking is meaningful
+  const fetchCount = req.top10_mode ? Math.max(req.result_count * 2, 20) : req.result_count;
   let raw = await fetchFromGooglePlaces(
     niche.label,
     req.city,
     req.state,
     country?.name ?? req.country,
-    req.result_count
+    fetchCount,
+    { top10Mode: req.top10_mode }
   );
 
-  // Supplement with SerpAPI if we got fewer than requested
-  if (raw.length < req.result_count) {
+  // Supplement with SerpAPI if we got fewer than requested (only for standard mode)
+  if (!req.top10_mode && raw.length < req.result_count) {
     const serpResults = await fetchFromSerpAPI(
       niche.label,
       req.city,
@@ -70,8 +81,12 @@ export async function runProspector(req: ProspectRequest): Promise<ProspectResul
     raw = [...raw, ...serpResults];
   }
 
-  return {
-    records: cleanBusinessRecords(raw, cleanerCtx),
-    demo_mode: false,
-  };
+  let records = cleanBusinessRecords(raw, cleanerCtx);
+  if (req.top10_mode) {
+    records = records
+      .sort((a, b) => topScore(b) - topScore(a))
+      .slice(0, 10);
+  }
+
+  return { records, demo_mode: false };
 }

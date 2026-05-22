@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle, ChevronRight } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, Trophy } from "lucide-react";
 import { useProspect } from "@/hooks/useProspect";
 import { ProspectForm } from "@/components/prospect/prospect-form";
 import { LeadTable } from "@/components/leads/lead-table";
@@ -52,6 +52,19 @@ export default function ProspectPage() {
             </div>
           )}
 
+          {result.top10_mode && (
+            <div className="flex items-start gap-3 bg-gold-dim border border-gold/20 rounded-xl p-4">
+              <Trophy className="h-4 w-4 text-gold shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-gold">Top 10 highest rated</p>
+                <p className="text-xs text-text-3 mt-0.5">
+                  Showing the best-rated {result.leads[0]?.niche_label ?? "businesses"} in this area, ranked by rating and review volume.
+                  Use these as premium prospects or competitor references.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2 text-text-2">
@@ -75,7 +88,7 @@ export default function ProspectPage() {
             </Link>
           </div>
 
-          <LeadTable leads={result.leads} onSelect={setSelectedLead} />
+          <LeadTable leads={result.leads} onSelect={setSelectedLead} topRated={result.top10_mode} />
         </div>
       )}
 

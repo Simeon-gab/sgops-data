@@ -1,7 +1,7 @@
 "use client";
 
 import { Star, Phone, Mail, Globe } from "lucide-react";
-import { QualityBadge, TierBadge } from "@/components/ui/badge";
+import { QualityBadge, TierBadge, TopRatedBadge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/utils/types";
 
 interface LeadTableProps {
@@ -11,6 +11,7 @@ interface LeadTableProps {
   selectedIds?: Set<string>;
   onToggle?: (id: string) => void;
   onToggleAll?: () => void;
+  topRated?: boolean;
 }
 
 export function LeadTable({
@@ -20,6 +21,7 @@ export function LeadTable({
   selectedIds,
   onToggle,
   onToggleAll,
+  topRated,
 }: LeadTableProps) {
   const multiSelectEnabled = !!(onToggle && selectedIds);
   const allSelected = multiSelectEnabled && leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
@@ -199,7 +201,7 @@ export function LeadTable({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <QualityBadge quality={lead.data_quality} />
+                    {topRated ? <TopRatedBadge /> : <QualityBadge quality={lead.data_quality} />}
                   </td>
                 </tr>
               );
@@ -267,7 +269,7 @@ export function LeadTable({
                 <p className="text-xs text-text-3 truncate">
                   {lead.city}{lead.city && lead.country ? ", " : ""}{lead.country}
                 </p>
-                <QualityBadge quality={lead.data_quality} />
+                {topRated ? <TopRatedBadge /> : <QualityBadge quality={lead.data_quality} />}
               </div>
 
               {(lead.email || lead.phone_formatted) && (

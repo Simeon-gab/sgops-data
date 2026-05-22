@@ -87,12 +87,14 @@ export async function fetchFromGooglePlaces(
   city: string,
   state: string,
   country: string,
-  targetCount: number
+  targetCount: number,
+  options?: { top10Mode?: boolean }
 ): Promise<RawBusinessRecord[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_PLACES_API_KEY not set");
 
-  const query = `${nicheLabel} in ${city}, ${state}, ${country}`;
+  const prefix = options?.top10Mode ? "best " : "";
+  const query = `${prefix}${nicheLabel} in ${city}, ${state}, ${country}`;
   const records: RawBusinessRecord[] = [];
   let pageToken: string | undefined;
   let page = 0;

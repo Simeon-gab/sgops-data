@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { niche_id, country, state, city, result_count } = body;
+  const { niche_id, country, state, city, result_count, top10_mode } = body;
   if (!niche_id || !country || !state || !city || !result_count) {
     return NextResponse.json<ApiError>(
       { error: "Missing required fields", code: "bad_request" },
@@ -155,9 +155,21 @@ export async function POST(req: NextRequest) {
     existingMatchedLeads = (existing as Lead[]) ?? [];
   }
 
+  const allLeads = [...insertedLeads, ...existingMatchedLeads];
+  const leads = top10_mode
+    ? allLeads
+        .sort((a, b) => {
+          const scoreA = (a.rating ?? 0) * Math.log((a.review_count ?? 0) + 2);
+          const scoreB = (b.rating ?? 0) * Math.log((b.review_count ?? 0) + 2);
+          return scoreB - scoreA;
+        })
+        .slice(0, 10)
+    : allLeads;
+
   return NextResponse.json({
-    leads: [...insertedLeads, ...existingMatchedLeads],
+    leads,
     demo_mode,
+    top10_mode: top10_mode ?? false,
     total_extracted: totalExtracted,
     duplicates_skipped: duplicatesSkipped,
     search_id: null,
