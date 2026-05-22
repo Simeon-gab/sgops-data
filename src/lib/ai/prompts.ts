@@ -189,25 +189,75 @@ Sequence:
 Return as JSON array: [{ "day": 3, "subject": "...", "body": "..." }, ...]`;
 }
 
-export function contentPlanPrompt(lead: Lead): string {
-  return `Generate a 90-day content strategy for this business.
+export function contentPlanPrompt(
+  lead: Lead,
+  options?: { services?: string[]; duration?: 30 | 60 | 90 }
+): string {
+  const services = options?.services?.length
+    ? options.services.join(", ")
+    : "Videography, Content Creation";
+  const duration = options?.duration ?? 90;
+
+  return `Generate a ${duration}-day content strategy proposal for ${lead.name}.
 
 Lead data:
 ${JSON.stringify(leadSnapshot(lead), null, 2)}
 
-Structure for each month:
-- Theme and title
-- Number of shoot days
-- Posting schedule (frequency and days)
-- Deliverables list (specific to their niche)
-- Platform focus (which platforms and why)
-- Goal for the month
+Services being proposed: ${services}
+Plan duration: ${duration} days
 
-Also include:
-- Suggested pricing tiers (Starter, Growth, Premium)
-- Platform strategy rationale
+This is a real agency sales proposal. Every section must be specific to ${lead.name}, their city (${lead.city}), their niche (${lead.niche_label}), and the services listed above. No generic filler.
 
-Return as JSON with structured data.`;
+Return ONLY valid JSON with this exact structure. All values must be strings or arrays of strings, never nested objects inside arrays:
+
+{
+  "executive_summary": "3-4 sentences. What problem we solve for ${lead.name} and why now. Confident and direct.",
+  "current_state": {
+    "strengths": ["Concrete strength 1 from their data", "Concrete strength 2", "Concrete strength 3"],
+    "weaknesses": ["Concrete weakness 1 from their data", "Concrete weakness 2", "Concrete weakness 3"]
+  },
+  "gap_analysis": ["Specific gap 1 for this business", "Specific gap 2", "Specific gap 3", "Specific gap 4"],
+  "strategy": {
+    "overview": "2-3 sentences on the overall strategic approach for this ${duration}-day engagement.",
+    "by_service": [
+      {
+        "service": "Exact service name",
+        "approach": "How we approach this specifically for ${lead.name} and their niche.",
+        "specifics": ["Specific tactic 1", "Specific tactic 2", "Specific tactic 3", "Specific tactic 4"]
+      }
+    ],
+    "content_calendar": "One paragraph describing how content is structured and distributed across the ${duration} days."
+  },
+  "deliverables": [
+    { "item": "Specific deliverable name", "timeline": "Week 1" },
+    { "item": "Specific deliverable name", "timeline": "Week 2" }
+  ],
+  "pricing": {
+    "starter": {
+      "name": "Starter",
+      "description": "Entry-level package for ${lead.name}",
+      "includes": ["Deliverable 1", "Deliverable 2", "Deliverable 3"],
+      "price": "$X,XXX/mo"
+    },
+    "growth": {
+      "name": "Growth",
+      "description": "Mid-tier package for scaling results",
+      "includes": ["Everything in Starter", "Deliverable 4", "Deliverable 5", "Deliverable 6"],
+      "price": "$X,XXX/mo"
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "Full-service content partnership",
+      "includes": ["Everything in Growth", "Deliverable 7", "Deliverable 8", "Deliverable 9"],
+      "price": "$XX,XXX/mo"
+    }
+  },
+  "kpis": [
+    { "metric": "Metric name", "target": "Specific measurable target", "timeline": "30 days" }
+  ]
+}
+
+Generate 6-8 deliverables and 5-6 KPIs. Price packages specific to the services selected: ${services}.`;
 }
 
 export function proposalPrompt(lead: Lead, observations: string[]): string {

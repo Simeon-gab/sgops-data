@@ -140,11 +140,12 @@ export async function generateFollowUpSequence(
 // ── Content plan ───────────────────────────────────────────────────────────────
 
 export async function generateContentPlan(
-  ctx: GenerationContext
+  ctx: GenerationContext,
+  options?: { services?: string[]; duration?: 30 | 60 | 90 }
 ): Promise<{ plan: Record<string, unknown>; tokensUsed: number }> {
   const { content, tokensUsed } = await callClaude(
     buildSystemPrompt(ctx),
-    contentPlanPrompt(ctx.lead),
+    contentPlanPrompt(ctx.lead, options),
     MODELS.quality,
     TOKEN_BUDGETS.content_plan
   );

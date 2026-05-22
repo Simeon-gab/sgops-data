@@ -28,6 +28,8 @@ interface GenerateBody {
   lead_id: string;
   type: GenerateType;
   original_subject?: string;
+  services?: string[];
+  duration?: 30 | 60 | 90;
 }
 
 // ── POST /api/generate ─────────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { lead_id, type, original_subject } = body;
+  const { lead_id, type, original_subject, services, duration } = body;
 
   if (!lead_id || !type) {
     return NextResponse.json<ApiError>(
@@ -213,7 +215,7 @@ export async function POST(req: NextRequest) {
         });
       }
     } else if (type === "content_plan") {
-      const { plan, tokensUsed } = await generateContentPlan(ctx);
+      const { plan, tokensUsed } = await generateContentPlan(ctx, { services, duration });
       inserts.push({
         workspace_id: workspace.id,
         lead_id,
