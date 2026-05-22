@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useRef, useEffect, useCallback } from "react";
+import { clsx } from "clsx";
+import { ChevronDown } from "lucide-react";
 import { COUNTRIES } from "@/lib/utils/locations";
+import { getStatesForCountry, getCitiesForState } from "@/lib/utils/locations/index";
 import { Select } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 
 interface LocationSelectorProps {
   country: string;
@@ -11,39 +14,152 @@ interface LocationSelectorProps {
   onChange: (field: "country" | "state" | "city", value: string) => void;
 }
 
-const PLACEHOLDERS: Record<string, { state: string; city: string }> = {
-  NG: { state: "e.g. Lagos, Oyo, Rivers",          city: "e.g. Victoria Island, Ikeja, Ibadan" },
-  GH: { state: "e.g. Greater Accra, Ashanti",      city: "e.g. Accra, Kumasi, Tema" },
-  ZA: { state: "e.g. Gauteng, Western Cape",        city: "e.g. Johannesburg, Cape Town, Durban" },
-  KE: { state: "e.g. Nairobi, Mombasa",             city: "e.g. Westlands, Karen, Nyali" },
-  IN: { state: "e.g. Maharashtra, Karnataka",       city: "e.g. Mumbai, Bangalore, Pune" },
-  AE: { state: "e.g. Dubai, Abu Dhabi",             city: "e.g. Jumeirah, Deira, Al Ain" },
-  SG: { state: "e.g. Central Region, East Region", city: "e.g. Orchard, Tampines, Clarke Quay" },
-  GB: { state: "e.g. England, Scotland",            city: "e.g. London, Manchester, Edinburgh" },
-  US: { state: "e.g. Texas, California",            city: "e.g. Dallas, Houston, Los Angeles" },
-  CA: { state: "e.g. Ontario, British Columbia",    city: "e.g. Toronto, Vancouver, Calgary" },
-  AU: { state: "e.g. New South Wales, Victoria",   city: "e.g. Sydney, Melbourne, Brisbane" },
-  DE: { state: "e.g. Bavaria, Berlin",              city: "e.g. Munich, Hamburg, Cologne" },
-  FR: { state: "e.g. Île-de-France, Normandy",     city: "e.g. Paris, Lyon, Marseille" },
-  BR: { state: "e.g. São Paulo, Rio de Janeiro",   city: "e.g. São Paulo, Rio, Campinas" },
-  MX: { state: "e.g. Jalisco, Mexico City",         city: "e.g. Guadalajara, Monterrey" },
-  JM: { state: "e.g. Kingston, St. James",          city: "e.g. Kingston, Montego Bay" },
-  TT: { state: "e.g. Port of Spain, San Fernando", city: "e.g. Port of Spain, Chaguanas" },
-  NL: { state: "e.g. North Holland, Utrecht",      city: "e.g. Amsterdam, Rotterdam" },
-};
+interface SearchableSelectProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  disabledPlaceholder: string;
+  disabled?: boolean;
+}
 
-const DEFAULT_PLACEHOLDERS = {
-  state: "e.g. State or region",
-  city:  "e.g. City or area",
-};
+function SearchableSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabledPlaceholder,
+  disabled,
+}: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  useEffect(() => {
+    function handlePointerDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        close();
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [close]);
+
+  const filtered = inputValue.trim()
+    ? options.filter((o) => o.toLowerCase().includes(inputValue.toLowerCase()))
+    : options;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    onChange(val);
+    setOpen(true);
+  };
+
+  const handleSelect = (opt: string) => {
+    setInputValue(opt);
+    onChange(opt);
+    setOpen(false);
+  };
+
+  const handleChevronClick = () => {
+    if (disabled) return;
+    const next = !open;
+    setOpen(next);
+    if (next) {
+      setTimeout(() => inputRef.current?.focus(), 30);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5" ref={containerRef}>
+      <label className="text-sm font-medium text-text-2">{label}</label>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          value={disabled ? "" : inputValue}
+          onChange={handleInputChange}
+          onFocus={() => { if (!disabled) setOpen(true); }}
+          placeholder={disabled ? disabledPlaceholder : placeholder}
+          disabled={disabled}
+          autoComplete="off"
+          className={clsx(
+            "w-full bg-bg-2 border border-border rounded-lg px-3 py-2 pr-8 text-sm text-text-1 placeholder:text-text-3",
+            "focus:outline-none focus:ring-2 focus:ring-gold focus:border-transparent",
+            "transition-colors",
+            disabled && "opacity-50 cursor-not-allowed"
+          )}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={handleChevronClick}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-3 focus:outline-none"
+        >
+          <ChevronDown
+            className={clsx("h-4 w-4 transition-transform duration-150", open && "rotate-180")}
+          />
+        </button>
+
+        {open && !disabled && (
+          <div className="absolute z-50 w-full mt-1 bg-bg-2 border border-border rounded-lg shadow-lg overflow-hidden">
+            <div className="max-h-56 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-text-3">
+                  {inputValue ? `Press Enter to use "${inputValue}"` : "No options available"}
+                </div>
+              ) : (
+                filtered.slice(0, 100).map((opt) => (
+                  <div
+                    key={opt}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
+                    className={clsx(
+                      "px-3 py-2 text-sm cursor-pointer transition-colors",
+                      opt === inputValue
+                        ? "bg-gold-dim text-gold"
+                        : "text-text-1 hover:bg-bg-3"
+                    )}
+                  >
+                    {opt}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function LocationSelector({ country, state, city, onChange }: LocationSelectorProps) {
-  const ph = (country && PLACEHOLDERS[country]) || DEFAULT_PLACEHOLDERS;
+  const stateOptions = country ? getStatesForCountry(country) : [];
+  const cityOptions = country && state ? getCitiesForState(country, state) : [];
 
   const handleCountryChange = (value: string) => {
     onChange("country", value);
     onChange("state", "");
     onChange("city", "");
+  };
+
+  const handleStateChange = (value: string) => {
+    onChange("state", value);
+    onChange("city", "");
+  };
+
+  const handleCityChange = (value: string) => {
+    onChange("city", value);
   };
 
   const countryOptions = [
@@ -60,24 +176,24 @@ export function LocationSelector({ country, state, city, onChange }: LocationSel
         options={countryOptions}
       />
 
-      <Input
+      <SearchableSelect
         label="State / Region"
-        name="sg-state-field"
-        autoComplete="one-time-code"
         value={state}
-        onChange={(e) => onChange("state", e.target.value)}
-        placeholder={ph.state}
+        onChange={handleStateChange}
+        options={stateOptions}
+        placeholder={stateOptions.length ? "Search or type state..." : "Type state or region"}
+        disabledPlaceholder="Select country first"
         disabled={!country}
       />
 
-      <Input
+      <SearchableSelect
         label="City / Area"
-        name="sg-city-field"
-        autoComplete="one-time-code"
         value={city}
-        onChange={(e) => onChange("city", e.target.value)}
-        placeholder={ph.city}
-        disabled={!country}
+        onChange={handleCityChange}
+        options={cityOptions}
+        placeholder={cityOptions.length ? "Search or type city..." : "Type city or area"}
+        disabledPlaceholder="Select state first"
+        disabled={!country || !state}
       />
     </div>
   );

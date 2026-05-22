@@ -379,6 +379,113 @@ export const COUNTRIES: LocationCountry[] = [
       ]},
     ],
   },
+  {
+    code: "JP", name: "Japan", dialCode: "+81", flag: "🇯🇵",
+    states: [
+      { code: "TKY", name: "Tokyo", cities: [
+        { name: "Shinjuku", lat: 35.6938, lng: 139.7034 },
+        { name: "Shibuya", lat: 35.6580, lng: 139.7016 },
+        { name: "Minato", lat: 35.6581, lng: 139.7514 },
+      ]},
+      { code: "OSK", name: "Osaka", cities: [
+        { name: "Osaka City", lat: 34.6937, lng: 135.5023 },
+        { name: "Sakai", lat: 34.5733, lng: 135.4830 },
+      ]},
+      { code: "KNG", name: "Kanagawa", cities: [
+        { name: "Yokohama", lat: 35.4437, lng: 139.6380 },
+        { name: "Kawasaki", lat: 35.5308, lng: 139.7029 },
+      ]},
+    ],
+  },
+  {
+    code: "KR", name: "South Korea", dialCode: "+82", flag: "🇰🇷",
+    states: [
+      { code: "SEL", name: "Seoul", cities: [
+        { name: "Gangnam", lat: 37.5172, lng: 127.0473 },
+        { name: "Jongno", lat: 37.5704, lng: 126.9910 },
+        { name: "Hongdae", lat: 37.5522, lng: 126.9225 },
+      ]},
+      { code: "GGI", name: "Gyeonggi", cities: [
+        { name: "Suwon", lat: 37.2636, lng: 127.0286 },
+        { name: "Seongnam", lat: 37.4201, lng: 127.1261 },
+      ]},
+      { code: "BSN", name: "Busan", cities: [
+        { name: "Haeundae", lat: 35.1631, lng: 129.1635 },
+        { name: "Seomyeon", lat: 35.1572, lng: 129.0594 },
+      ]},
+    ],
+  },
+  {
+    code: "SA", name: "Saudi Arabia", dialCode: "+966", flag: "🇸🇦",
+    states: [
+      { code: "RIY", name: "Riyadh Province", cities: [
+        { name: "Riyadh City", lat: 24.6877, lng: 46.7219 },
+        { name: "Olaya", lat: 24.6916, lng: 46.6833 },
+        { name: "Al Kharj", lat: 24.1527, lng: 47.3163 },
+      ]},
+      { code: "MAK", name: "Makkah Province", cities: [
+        { name: "Jeddah", lat: 21.4858, lng: 39.1925 },
+        { name: "Mecca", lat: 21.3891, lng: 39.8579 },
+      ]},
+      { code: "EAS", name: "Eastern Province", cities: [
+        { name: "Dammam", lat: 26.4207, lng: 50.0888 },
+        { name: "Al Khobar", lat: 26.2172, lng: 50.1971 },
+        { name: "Dhahran", lat: 26.2690, lng: 50.1509 },
+      ]},
+    ],
+  },
+  {
+    code: "EG", name: "Egypt", dialCode: "+20", flag: "🇪🇬",
+    states: [
+      { code: "CAI", name: "Cairo", cities: [
+        { name: "Downtown Cairo", lat: 30.0444, lng: 31.2357 },
+        { name: "Heliopolis", lat: 30.0892, lng: 31.3195 },
+        { name: "Nasr City", lat: 30.0510, lng: 31.3312 },
+      ]},
+      { code: "GIZ", name: "Giza", cities: [
+        { name: "Giza City", lat: 30.0131, lng: 31.2089 },
+        { name: "6th of October", lat: 29.9339, lng: 30.9200 },
+      ]},
+      { code: "ALX", name: "Alexandria", cities: [
+        { name: "Alexandria CBD", lat: 31.2001, lng: 29.9187 },
+        { name: "Smouha", lat: 31.2059, lng: 29.9550 },
+      ]},
+    ],
+  },
+  {
+    code: "ES", name: "Spain", dialCode: "+34", flag: "🇪🇸",
+    states: [
+      { code: "CAT", name: "Catalonia", cities: [
+        { name: "Barcelona", lat: 41.3851, lng: 2.1734 },
+        { name: "Terrassa", lat: 41.5628, lng: 2.0099 },
+      ]},
+      { code: "MAD", name: "Madrid", cities: [
+        { name: "Madrid City", lat: 40.4168, lng: -3.7038 },
+        { name: "Alcalá de Henares", lat: 40.4819, lng: -3.3635 },
+      ]},
+      { code: "AND", name: "Andalusia", cities: [
+        { name: "Seville", lat: 37.3891, lng: -5.9845 },
+        { name: "Málaga", lat: 36.7213, lng: -4.4213 },
+      ]},
+    ],
+  },
+  {
+    code: "IT", name: "Italy", dialCode: "+39", flag: "🇮🇹",
+    states: [
+      { code: "LAZ", name: "Lazio", cities: [
+        { name: "Rome", lat: 41.9028, lng: 12.4964 },
+        { name: "Latina", lat: 41.4677, lng: 12.9026 },
+      ]},
+      { code: "LOM", name: "Lombardy", cities: [
+        { name: "Milan", lat: 45.4654, lng: 9.1859 },
+        { name: "Bergamo", lat: 45.6983, lng: 9.6773 },
+      ]},
+      { code: "CAM", name: "Campania", cities: [
+        { name: "Naples", lat: 40.8518, lng: 14.2681 },
+        { name: "Salerno", lat: 40.6824, lng: 14.7681 },
+      ]},
+    ],
+  },
 ];
 
 export function getCountry(code: string): LocationCountry | undefined {
