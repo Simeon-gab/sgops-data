@@ -80,24 +80,41 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
 
-  let query = supabase
-    .from("leads")
-    .select("*")
-    .eq("workspace_id", workspace.id);
+  // Page through the whole filtered set. A single select is capped at 1000 rows
+  // by PostgREST, which would quietly export a partial list and look complete.
+  const EXPORT_PAGE = 1000;
+  const MAX_EXPORT_PAGES = 100;
+  const allLeads: unknown[] = [];
 
-  query = applyLeadFilters(query, searchParams);
-  query = query.order("score", { ascending: false });
+  for (let page = 0; page < MAX_EXPORT_PAGES; page++) {
+    const from = page * EXPORT_PAGE;
 
-  const { data: leads, error } = await query;
+    let query = supabase
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", workspace.id);
 
-  if (error) {
-    return NextResponse.json<ApiError>(
-      { error: error.message, code: "db_error" },
-      { status: 500 }
-    );
+    query = applyLeadFilters(query, searchParams);
+    query = query
+      .order("score", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + EXPORT_PAGE - 1);
+
+    const { data: batch, error } = await query;
+
+    if (error) {
+      return NextResponse.json<ApiError>(
+        { error: error.message, code: "db_error" },
+        { status: 500 }
+      );
+    }
+
+    if (!batch?.length) break;
+    allLeads.push(...batch);
+    if (batch.length < EXPORT_PAGE) break;
   }
 
-  const records = (leads ?? []).map(toExportRecord);
+  const records = allLeads.map((lead) => toExportRecord(lead as Parameters<typeof toExportRecord>[0]));
   const csv = toCSV(records);
   const date = new Date().toISOString().slice(0, 10);
 

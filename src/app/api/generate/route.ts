@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
-import { getPlaybook } from "@/lib/ai/playbooks";
-import type { PlaybookData } from "@/lib/ai/playbooks";
+import { resolveCampaignPlaybook } from "@/lib/ai/playbook-generator";
+import {
+  resolveSenderProfile,
+  isProfileComplete,
+  missingProfileFields,
+} from "@/lib/utils/sender-profile";
+import { supportsGenerator, getGoalPreset } from "@/lib/utils/profiles";
 import {
   generateColdEmail,
   generateCallScript,
@@ -12,17 +17,9 @@ import {
   generateLeadIntel,
 } from "@/lib/ai/generators";
 import { MODELS } from "@/lib/ai/claude";
-import type { Lead, OutreachTemplate, ApiError } from "@/lib/utils/types";
+import type { GenerateType, Lead, OutreachTemplate, ApiError } from "@/lib/utils/types";
 
 // ── Request body ──────────────────────────────────────────────────────────────
-
-type GenerateType =
-  | "cold_email"
-  | "call_script"
-  | "follow_up"
-  | "content_plan"
-  | "proposal"
-  | "lead_intel";
 
 interface GenerateBody {
   lead_id: string;
@@ -112,47 +109,42 @@ export async function POST(req: NextRequest) {
 
   const lead = leadRow as Lead;
 
-  // ── Playbook: workspace-specific override first, then in-memory default ──────
+  // ── Sender profile: who is writing, what they want, who they are writing to ──
 
-  const { data: dbPlaybook } = await supabase
-    .from("niche_playbooks")
-    .select("*")
-    .eq("workspace_id", workspace.id)
-    .eq("niche_id", lead.niche_id)
-    .maybeSingle();
+  const profile = resolveSenderProfile(workspace);
 
-  const defaultPlaybook: PlaybookData = getPlaybook(lead.niche_id) ?? {
-    niche_id:   lead.niche_id,
-    niche_label: lead.niche_label,
-    pain_points: `${lead.niche_label} businesses looking to grow their digital presence`,
-    content_angles: ["Video content showcasing their services and expertise"],
-    hook: "Your competitors have professional video content. You do not. We fix that.",
-    objection_responses: {},
-    pricing_tiers: {
-      starter: { description: "Single shoot day, 8 deliverables", price_range: "$1,500-$2,500" },
-      growth:  { description: "Monthly retainer, 20 deliverables", price_range: "$2,500-$4,000/mo" },
-      premium: { description: "Full content partnership", price_range: "$5,000-$8,000/mo" },
-    },
-  };
+  if (!isProfileComplete(profile)) {
+    return NextResponse.json<ApiError>(
+      {
+        error: `Complete your profile first. Still missing: ${missingProfileFields(profile).join(", ")}.`,
+        code: "profile_incomplete",
+      },
+      { status: 409 }
+    );
+  }
 
-  const playbook: PlaybookData = dbPlaybook
-    ? {
-        niche_id:   dbPlaybook.niche_id,
-        niche_label: dbPlaybook.niche_label,
-        pain_points: dbPlaybook.pain_points,
-        content_angles: dbPlaybook.content_angles,
-        hook: dbPlaybook.hook,
-        objection_responses: dbPlaybook.objection_responses as Record<string, string>,
-        pricing_tiers: dbPlaybook.pricing_tiers as PlaybookData["pricing_tiers"],
-      }
-    : defaultPlaybook;
+  if (!supportsGenerator(profile.goal, type)) {
+    const preset = getGoalPreset(profile.goal);
+    return NextResponse.json<ApiError>(
+      {
+        error: `"${type}" is not available for the "${preset.label}" goal.`,
+        code: "unsupported_for_goal",
+      },
+      { status: 400 }
+    );
+  }
 
-  const ctx = {
-    lead,
-    playbook,
-    agencyName: workspace.agency_name ?? "Our Agency",
-    portfolioUrl: workspace.agency_portfolio_url,
-  };
+  // ── Playbook: generated for this sender and audience, then cached ───────────
+
+  const playbook = await resolveCampaignPlaybook(
+    supabase,
+    workspace.id,
+    profile,
+    lead.niche_id,
+    lead.niche_label
+  );
+
+  const ctx = { lead, profile, playbook };
 
   // ── Generate ─────────────────────────────────────────────────────────────────
 

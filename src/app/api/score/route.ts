@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import { scoreLead } from "@/lib/engine/scorer";
+import { resolveSenderProfile } from "@/lib/utils/sender-profile";
 import type { Lead, CleanBusinessRecord, Competitor, SocialProfile, ApiError } from "@/lib/utils/types";
 import type { EnrichmentResult } from "@/lib/engine/enricher";
 
@@ -93,6 +94,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const scoringProfile = resolveSenderProfile(workspace).scoring_profile;
+
   const { data: leads, error: leadsError } = await supabase
     .from("leads")
     .select("*")
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
       business_signals:    (lead.business_signals ?? []) as string[],
     };
 
-    const { score, tier, breakdown } = scoreLead(record, enrichment);
+    const { score, tier, breakdown } = scoreLead(record, enrichment, scoringProfile);
 
     const { data: updated, error: updateError } = await supabase
       .from("leads")

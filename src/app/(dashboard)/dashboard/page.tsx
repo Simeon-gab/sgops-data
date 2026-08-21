@@ -21,8 +21,14 @@ interface DashboardData {
     hot: number;
     warm: number;
     cold: number;
+    // Never enriched, so the tier is unknown rather than a confirmed "cold"
+    unscored: number;
+    enriched: number;
     active: number;
     with_email: number;
+    // Addresses derived from a domain and never confirmed to exist
+    email_guessed: number;
+    email_verified: number;
     by_stage: Array<{ stage: string; label: string; count: number; color: string }>;
     by_niche: Array<{ niche: string; count: number }>;
     verified: number;
@@ -148,7 +154,11 @@ export default function DashboardPage() {
         <StatCard
           label="Total Leads"
           value={leads?.total ?? 0}
-          sub={`${leads?.hot ?? 0} hot · ${leads?.with_email ?? 0} with email`}
+          sub={
+            (leads?.email_guessed ?? 0) > 0
+              ? `${leads?.with_email ?? 0} with email · ${leads?.email_guessed} unverified`
+              : `${leads?.hot ?? 0} hot · ${leads?.with_email ?? 0} with email`
+          }
           icon={Users}
           color="text-text-2"
           bg="bg-bg-3"
@@ -157,7 +167,13 @@ export default function DashboardPage() {
         <StatCard
           label="Hot Leads"
           value={leads?.hot ?? 0}
-          sub={`${pct(leads?.hot ?? 0, leads?.total ?? 0)}% of total`}
+          // Tiers only mean something after enrichment. Saying "0% hot" when
+          // nothing has been scored reads as a verdict rather than a gap.
+          sub={
+            (leads?.unscored ?? 0) > 0
+              ? `${leads?.unscored} not yet enriched`
+              : `${pct(leads?.hot ?? 0, leads?.total ?? 0)}% of total`
+          }
           icon={Flame}
           color="text-red-400"
           bg="bg-red-500/10"

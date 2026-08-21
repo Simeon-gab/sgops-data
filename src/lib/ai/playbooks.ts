@@ -1,3 +1,5 @@
+import type { CampaignPlaybook, OutreachGoal, SenderProfile } from "@/lib/utils/types";
+
 export interface PlaybookData {
   niche_id: string;
   niche_label: string;
@@ -398,4 +400,57 @@ const PLAYBOOK_MAP = new Map<string, PlaybookData>(
 
 export function getPlaybook(nicheId: string): PlaybookData | null {
   return PLAYBOOK_MAP.get(nicheId) ?? null;
+}
+
+// ── Campaign playbook adapters ────────────────────────────────────────────────
+// The hand-written playbooks above are video-agency shaped. They are no longer
+// the primary source: playbooks are now generated per sender profile and cached
+// in niche_playbooks. These remain as seeds for the client-acquisition goal and
+// as a fallback when generation fails, so outreach never blocks on the AI call.
+
+function toCampaignPlaybook(p: PlaybookData): CampaignPlaybook {
+  return {
+    niche_id: p.niche_id,
+    niche_label: p.niche_label,
+    audience_context: p.pain_points,
+    pain_points: p.pain_points,
+    value_angles: p.content_angles,
+    hook: p.hook,
+    objection_responses: p.objection_responses,
+    offer_tiers: Object.entries(p.pricing_tiers).map(([name, tier]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      description: tier.description,
+      price_range: tier.price_range,
+    })),
+  };
+}
+
+// Seed playbooks only apply to the client-acquisition goal. Handing a job
+// seeker a playbook full of video pricing tiers would be worse than nothing.
+export function getSeedPlaybook(
+  goal: OutreachGoal,
+  nicheId: string
+): CampaignPlaybook | null {
+  if (goal !== "win_clients") return null;
+  const seed = PLAYBOOK_MAP.get(nicheId);
+  return seed ? toCampaignPlaybook(seed) : null;
+}
+
+// Last-resort playbook built from the sender profile alone, with no assumptions
+// about the audience beyond what the sender told us.
+export function fallbackPlaybook(
+  profile: SenderProfile,
+  nicheId: string,
+  nicheLabel: string
+): CampaignPlaybook {
+  return {
+    niche_id: nicheId,
+    niche_label: nicheLabel,
+    audience_context: profile.audience,
+    pain_points: `What ${nicheLabel.toLowerCase()} typically need from someone offering: ${profile.offer}`,
+    value_angles: [profile.offer],
+    hook: profile.offer,
+    objection_responses: {},
+    offer_tiers: null,
+  };
 }

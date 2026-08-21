@@ -71,7 +71,8 @@ export default function LeadsPage() {
     }));
   }, [niche, tier, stage, quality]);
 
-  const { leads, loading, error, refetch } = useLeads(true, filters);
+  const { leads, total, hasMore, loading, loadingMore, error, loadMore, refetch } =
+    useLeads(true, filters);
 
   const hasActiveFilters = !!(rawSearch || rawCountry || rawState || rawCity || niche || tier || stage || quality);
 
@@ -149,7 +150,9 @@ export default function LeadsPage() {
           <p className="text-text-3 mt-1 text-sm">
             {loading
               ? "Loading..."
-              : `${leads.length} lead${leads.length !== 1 ? "s" : ""}${hasActiveFilters ? " (filtered)" : " in your workspace"}`}
+              : leads.length < total
+              ? `Showing ${leads.length} of ${total} lead${total !== 1 ? "s" : ""}${hasActiveFilters ? " (filtered)" : ""}`
+              : `${total} lead${total !== 1 ? "s" : ""}${hasActiveFilters ? " (filtered)" : " in your workspace"}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -340,6 +343,18 @@ export default function LeadsPage() {
           onToggle={handleToggle}
           onToggleAll={handleToggleAll}
         />
+      )}
+
+      {hasMore && !loading && (
+        <div className="flex flex-col items-center gap-2 mt-4">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="text-sm px-4 py-2 rounded-lg border border-border text-text-2 hover:text-text-1 hover:border-border-hover transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? "Loading..." : `Load more (${total - leads.length} remaining)`}
+          </button>
+        </div>
       )}
 
       <ErrorBoundary label="Lead detail panel">

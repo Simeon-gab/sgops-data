@@ -3,11 +3,16 @@ import { createHash } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import { NICHES } from "@/lib/utils/constants";
+import { isNonBusinessEmail } from "@/lib/utils/email-domains";
 import type { Lead, LeadImportRow, LeadImportResponse, ApiError } from "@/lib/utils/types";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const MAX_ROWS = 1_000;
+const MAX_ROWS = 5_000;
+
+// PostgREST caps a response at 1000 rows, and a very long `in` list bloats the
+// URL, so existing-email lookups are batched.
+const EMAIL_LOOKUP_CHUNK = 200;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -84,6 +89,7 @@ export async function POST(req: NextRequest) {
   // ── 1. Validate rows and dedupe within the file ────────────────────────────
 
   let invalidSkipped = 0;
+  let blockedSkipped = 0;
   const seenEmails = new Set<string>();
   const validRows: (LeadImportRow & { email: string })[] = [];
 
@@ -91,6 +97,12 @@ export async function POST(req: NextRequest) {
     const email = row.email?.trim().toLowerCase();
     if (!email || !EMAIL_RE.test(email)) {
       invalidSkipped++;
+      continue;
+    }
+    // Social pages, link aggregators, and free mailbox providers are not
+    // business inboxes. Importing them just seeds a future bounce.
+    if (isNonBusinessEmail(email)) {
+      blockedSkipped++;
       continue;
     }
     if (seenEmails.has(email)) {
@@ -103,40 +115,54 @@ export async function POST(req: NextRequest) {
 
   if (validRows.length === 0) {
     return NextResponse.json<ApiError>(
-      { error: "No rows with a valid email address found", code: "no_valid_rows" },
+      { error: "No rows with a usable business email address found", code: "no_valid_rows" },
       { status: 400 }
     );
   }
 
   // ── 2. Dedupe against existing workspace leads by email ───────────────────
+  // Query only the addresses in this file. Fetching every existing email
+  // silently truncates at PostgREST's 1000-row cap, so past a thousand leads
+  // the dedupe check would start missing real duplicates.
 
-  const { data: existingRaw, error: existingError } = await supabase
-    .from("leads")
-    .select("email")
-    .eq("workspace_id", workspace.id)
-    .not("email", "is", null);
+  const existingEmails = new Set<string>();
+  const emailList = validRows.map((r) => r.email);
 
-  if (existingError) {
-    return NextResponse.json<ApiError>(
-      { error: existingError.message, code: "db_error" },
-      { status: 500 }
-    );
+  for (let i = 0; i < emailList.length; i += EMAIL_LOOKUP_CHUNK) {
+    const chunk = emailList.slice(i, i + EMAIL_LOOKUP_CHUNK);
+    const { data: existingRaw, error: existingError } = await supabase
+      .from("leads")
+      .select("email")
+      .eq("workspace_id", workspace.id)
+      .in("email", chunk);
+
+    if (existingError) {
+      return NextResponse.json<ApiError>(
+        { error: existingError.message, code: "db_error" },
+        { status: 500 }
+      );
+    }
+
+    for (const l of (existingRaw ?? []) as { email: string | null }[]) {
+      const normalized = l.email?.trim().toLowerCase();
+      if (normalized) existingEmails.add(normalized);
+    }
   }
-
-  const existingEmails = new Set(
-    (existingRaw ?? [])
-      .map((l: { email: string | null }) => l.email?.trim().toLowerCase())
-      .filter(Boolean)
-  );
 
   const newRows = validRows.filter((r) => !existingEmails.has(r.email));
   const duplicatesSkipped = validRows.length - newRows.length;
+
+  const customFieldKeys = Array.from(
+    new Set(newRows.flatMap((r) => Object.keys(r.custom_fields ?? {})))
+  ).sort();
 
   if (newRows.length === 0) {
     return NextResponse.json<LeadImportResponse>({
       imported: 0,
       duplicates_skipped: duplicatesSkipped,
       invalid_skipped: invalidSkipped,
+      blocked_skipped: blockedSkipped,
+      custom_fields: [],
       leads: [],
     });
   }
@@ -176,6 +202,10 @@ export async function POST(req: NextRequest) {
       email_verified: false,
       email_confidence: null,
       email_source: "csv_import",
+      // The user supplied it, we did not derive it, but nothing has confirmed
+      // it exists either. Verification upgrades this to "verified".
+      email_status: "unknown",
+      custom_fields: row.custom_fields ?? {},
       phone,
       phone_formatted: null,
       phone_valid: false,
@@ -222,6 +252,8 @@ export async function POST(req: NextRequest) {
     imported: inserted?.length ?? 0,
     duplicates_skipped: duplicatesSkipped,
     invalid_skipped: invalidSkipped,
+    blocked_skipped: blockedSkipped,
+    custom_fields: customFieldKeys,
     leads: (inserted as Lead[]) ?? [],
   });
 }

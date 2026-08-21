@@ -167,3 +167,87 @@ export function buildSampleCSV(): string {
     'Bella Salon,bella@bellasalon.ng,+2348098765432,,Nigeria,Abuja,Wuse,Referred by client',
   ].join("\n");
 }
+
+// ── Row building ──────────────────────────────────────────────────────────────
+// Columns the user did not map to a known field are not discarded. They become
+// custom fields on the lead and are usable as {{merge_fields}} in campaigns,
+// which is the whole point of importing your own spreadsheet.
+
+export interface BuiltImportRow {
+  name: string;
+  email: string;
+  phone?: string;
+  website?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  notes?: string;
+  custom_fields: Record<string, string>;
+}
+
+// Header text becomes a merge-field key: "Contact Role" -> contact_role
+export function toFieldKey(header: string): string {
+  return header
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+const RESERVED_FIELD_KEYS = new Set([
+  "name", "business_name", "company", "first_name", "email", "phone", "website",
+  "city", "state", "country", "location", "niche", "rating", "review_count",
+]);
+
+export function buildImportRows(
+  parsed: ParsedCSV,
+  mapping: ColumnMapping
+): BuiltImportRow[] {
+  const mappedIndexes = new Set(
+    Object.values(mapping).filter((i) => i >= 0)
+  );
+
+  // Precompute the custom columns once rather than per row.
+  const customColumns = parsed.headers
+    .map((header, index) => ({ key: toFieldKey(header), index }))
+    .filter(({ key, index }) => key && !mappedIndexes.has(index))
+    // A custom column may not shadow a built-in merge field, or a template
+    // using {{company}} would resolve differently per row depending on the file.
+    .filter(({ key }) => !RESERVED_FIELD_KEYS.has(key));
+
+  const cell = (row: string[], index: number): string =>
+    index >= 0 ? (row[index] ?? "").trim() : "";
+
+  return parsed.rows.map((row) => {
+    const custom_fields: Record<string, string> = {};
+    for (const { key, index } of customColumns) {
+      const value = cell(row, index);
+      if (value) custom_fields[key] = value;
+    }
+
+    return {
+      name:     cell(row, mapping.name),
+      email:    cell(row, mapping.email),
+      phone:    cell(row, mapping.phone)   || undefined,
+      website:  cell(row, mapping.website) || undefined,
+      country:  cell(row, mapping.country) || undefined,
+      state:    cell(row, mapping.state)   || undefined,
+      city:     cell(row, mapping.city)    || undefined,
+      notes:    cell(row, mapping.notes)   || undefined,
+      custom_fields,
+    };
+  });
+}
+
+// Headers that will be carried through as merge fields, for showing the user
+// what {{placeholders}} their import just made available.
+export function detectCustomFields(
+  headers: string[],
+  mapping: ColumnMapping
+): string[] {
+  const mappedIndexes = new Set(Object.values(mapping).filter((i) => i >= 0));
+  return headers
+    .map((header, index) => ({ key: toFieldKey(header), index }))
+    .filter(({ key, index }) => key && !mappedIndexes.has(index) && !RESERVED_FIELD_KEYS.has(key))
+    .map(({ key }) => key);
+}

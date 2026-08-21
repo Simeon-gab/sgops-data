@@ -5,6 +5,7 @@ import {
   type CountryCode,
 } from "libphonenumber-js";
 import type { CleanBusinessRecord, DataQuality, RawBusinessRecord } from "@/lib/utils/types";
+import { extractDomain, isNonBusinessDomain } from "@/lib/utils/email-domains";
 
 // ── Phone normalization ───────────────────────────────────────────────────────
 
@@ -110,7 +111,12 @@ function scoreQuality(
 ): { quality: DataQuality; issues: string[] } {
   const issues: string[] = [];
 
+  // A guessed info@ address is a hypothesis, not a contact. Treating it as one
+  // is what made records look "verified" when nothing about them was confirmed.
+  const hasRealEmail = Boolean(email.address) && email.source !== "pattern";
+
   if (!email.address) issues.push("missing_email");
+  else if (!hasRealEmail) issues.push("guessed_email");
   if (!website.url) issues.push("no_website");
   if (!phone.raw) issues.push("missing_phone");
   else if (!phone.is_valid) issues.push("invalid_phone");
@@ -118,7 +124,7 @@ function scoreQuality(
   if (reviewCount < 10) issues.push("low_reviews");
 
   let quality: DataQuality;
-  if (phone.is_valid && website.url && email.address && reviewCount >= 20) {
+  if (phone.is_valid && website.url && hasRealEmail && reviewCount >= 20) {
     quality = "verified";
   } else if (phone.is_valid || website.url || email.address) {
     quality = "partial";
@@ -146,14 +152,19 @@ function guessEmailFromWebsite(
     };
   }
   if (websiteUrl) {
-    // Generate a guessed info@ address — marked unverified, low confidence
-    const domain = websiteUrl.replace(/https?:\/\/(www\.)?/, "").split("/")[0].split("?")[0];
-    return {
-      address: `info@${domain}`,
-      source: "pattern" as const,
-      is_verified: false,
-      confidence: 15,
-    };
+    const domain = extractDomain(websiteUrl);
+    // Only guess against a domain the business actually controls. Google Places
+    // routinely returns an Instagram, Linktree, or Google Sites page as the
+    // "website", and info@instagram.com is someone else's inbox. No email is
+    // strictly better than a wrong one: it costs a lead, not a sending domain.
+    if (domain && !isNonBusinessDomain(domain)) {
+      return {
+        address: `info@${domain}`,
+        source: "pattern" as const,
+        is_verified: false,
+        confidence: 15,
+      };
+    }
   }
   return { address: null, source: null, is_verified: false, confidence: 0 };
 }

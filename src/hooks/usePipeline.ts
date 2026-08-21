@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import type { Lead, PipelineStage } from "@/lib/utils/types";
+import { fetchAllLeads } from "@/lib/utils/fetch-leads";
 
 export interface PipelineGroups {
   new: Lead[];
@@ -22,10 +23,9 @@ export function usePipeline() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/leads");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to load leads");
-      setLeads(data.leads ?? []);
+      // The board groups by stage on the client, so it needs every lead, not
+      // just the first page.
+      setLeads(await fetchAllLeads());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {

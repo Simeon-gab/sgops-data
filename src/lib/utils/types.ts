@@ -18,6 +18,9 @@ export interface Lead {
   email_verified: boolean;
   email_confidence: number | null;
   email_source: string | null;
+  // How much the address can be trusted. "guessed" means it was derived from a
+  // domain and never confirmed to exist, which bulk sending must gate on.
+  email_status: EmailStatus;
   phone: string | null;
   phone_formatted: string | null;
   phone_valid: boolean;
@@ -46,6 +49,8 @@ export interface Lead {
   last_contacted_at: string | null;
   notes: string;
   source: "google_places" | "serpapi" | "directory" | "manual" | "csv_import";
+  // Arbitrary columns carried over from a CSV import, usable as merge fields
+  custom_fields: Record<string, string>;
   extracted_at: string;
   enriched_at: string | null;
   created_at: string;
@@ -83,6 +88,13 @@ export type PipelineStage =
 
 export type DataQuality = "verified" | "partial" | "unverified";
 
+// How much an email address can be trusted.
+//   guessed  = derived from a domain, never confirmed to exist
+//   verified = confirmed by a verification provider
+//   invalid  = confirmed not to exist
+//   unknown  = scraped or imported, never checked
+export type EmailStatus = "guessed" | "verified" | "invalid" | "unknown";
+
 // "unscored" = lead has not been enriched yet, so its digital-presence signals
 // are unknown. It must never be treated as a confirmed "cold" lead.
 export type LeadTier = "hot" | "warm" | "cold" | "unscored";
@@ -99,8 +111,100 @@ export interface Workspace {
   agency_portfolio_url: string | null;
   logo_url: string | null;
   settings: Record<string, unknown>;
+  // ── Sender profile ──────────────────────────────────────────────────────────
+  // Who is sending, what they want, and who they are contacting. Drives the AI
+  // system prompt, the scoring weights, and which generators are available.
+  goal: OutreachGoal | null;
+  sender_name: string | null;
+  sender_role: string | null;
+  organization: string | null;
+  offer: string | null;
+  audience: string | null;
+  credibility: string | null;
+  cta: string | null;
+  tone: SenderTone | null;
+  scoring_profile: ScoringProfileId | null;
+  onboarded_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Sender profile ────────────────────────────────────────────────────────────
+
+export type OutreachGoal =
+  | "win_clients"
+  | "find_job"
+  | "sell_product"
+  | "partnership"
+  | "research"
+  | "custom";
+
+export type SenderTone = "direct" | "warm" | "formal" | "casual";
+
+export type ScoringProfileId =
+  | "digital_presence"
+  | "hiring_intent"
+  | "business_maturity"
+  | "contactability"
+  | "none";
+
+export type GenerateType =
+  | "cold_email"
+  | "call_script"
+  | "follow_up"
+  | "content_plan"
+  | "proposal"
+  | "lead_intel";
+
+// The resolved, non-null view of the workspace's sender profile. Built by
+// resolveSenderProfile so every consumer gets usable strings, never nulls.
+export interface SenderProfile {
+  goal: OutreachGoal;
+  sender_name: string;
+  sender_role: string;
+  organization: string | null;
+  offer: string;
+  audience: string;
+  credibility: string | null;
+  cta: string;
+  tone: SenderTone;
+  scoring_profile: ScoringProfileId;
+  website: string | null;
+  onboarded: boolean;
+}
+
+export interface SenderProfileInput {
+  goal: OutreachGoal;
+  sender_name: string;
+  sender_role: string;
+  organization?: string | null;
+  offer: string;
+  audience: string;
+  credibility?: string | null;
+  cta?: string | null;
+  tone?: SenderTone;
+  scoring_profile?: ScoringProfileId;
+}
+
+// ── Campaign playbook ─────────────────────────────────────────────────────────
+// Generated per (sender profile x target audience) and cached on
+// niche_playbooks. Replaces the hand-written, video-agency-shaped playbooks.
+
+export interface OfferTier {
+  name: string;
+  description: string;
+  price_range: string | null;
+}
+
+export interface CampaignPlaybook {
+  niche_id: string;
+  niche_label: string;
+  audience_context: string;
+  pain_points: string;
+  value_angles: string[];
+  hook: string;
+  objection_responses: Record<string, string>;
+  offer_tiers: OfferTier[] | null;
 }
 
 export interface ProspectRequest {
@@ -166,11 +270,20 @@ export interface NichePlaybook {
   niche_id: string;
   niche_label: string;
   icon: string | null;
-  pain_points: string;
-  content_angles: string[];
-  hook: string;
+  // Legacy columns, kept nullable for rows written before the sender-profile
+  // migration. New rows populate the campaign-playbook columns below.
+  pain_points: string | null;
+  content_angles: string[] | null;
+  hook: string | null;
+  pricing_tiers: Record<string, unknown> | null;
+  // Campaign playbook columns
+  goal: OutreachGoal | null;
+  audience_context: string | null;
+  value_angles: string[] | null;
+  offer_tiers: OfferTier[] | null;
+  profile_hash: string | null;
+  generated_at: string | null;
   objection_responses: Record<string, string>;
-  pricing_tiers: Record<string, unknown>;
   is_custom: boolean;
   created_at: string;
   updated_at: string;
@@ -234,13 +347,91 @@ export interface LeadImportRow {
   state?: string;
   city?: string;
   notes?: string;
+  // Unmapped CSV columns, carried through as {{merge_fields}} for campaigns
+  custom_fields?: Record<string, string>;
 }
 
 export interface LeadImportResponse {
   imported: number;
   duplicates_skipped: number;
   invalid_skipped: number;
+  // Rows whose address sits on a domain we refuse to mail (social pages,
+  // link aggregators, free mailbox providers used as a business domain)
+  blocked_skipped: number;
+  custom_fields: string[];
   leads: Lead[];
+}
+
+// ── Campaigns ─────────────────────────────────────────────────────────────────
+
+export type CampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "sending"
+  | "paused"
+  | "completed"
+  | "cancelled";
+
+export interface Campaign {
+  id: string;
+  workspace_id: string;
+  name: string;
+  status: CampaignStatus;
+  subject_template: string | null;
+  body_template: string | null;
+  from_name: string | null;
+  from_email: string | null;
+  daily_limit: number;
+  throttle_seconds: number;
+  send_window_start: string | null;
+  send_window_end: string | null;
+  timezone: string;
+  scheduled_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RecipientStatus = "pending" | "sending" | "sent" | "failed" | "skipped";
+
+export interface CampaignRecipient {
+  id: string;
+  campaign_id: string;
+  workspace_id: string;
+  lead_id: string;
+  to_email: string;
+  subject: string | null;
+  body: string | null;
+  status: RecipientStatus;
+  skip_reason: string | null;
+  send_id: string | null;
+  attempts: number;
+  last_error: string | null;
+  scheduled_for: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export type SuppressionReason =
+  | "unsubscribed"
+  | "bounced"
+  | "complained"
+  | "invalid"
+  | "manual";
+
+export interface Suppression {
+  id: string;
+  // null means a global suppression applying to every workspace
+  workspace_id: string | null;
+  email: string;
+  reason: SuppressionReason;
+  source: string | null;
+  created_at: string;
 }
 
 // ── Engine types ──────────────────────────────────────────────────────────────

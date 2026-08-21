@@ -2,9 +2,21 @@
 
 ## Project Identity
 
-SgOps Data is a client acquisition operating system built for creative agencies (videographers, photographers, production companies, marketing agencies). It automates the entire pipeline from prospecting to closed client: extract business data, enrich and score leads, generate personalized outreach, track pipeline, and produce content strategies.
+SgOps Data is an outreach operating system for anyone who needs to reach businesses at scale: freelancers and agencies hunting clients, job seekers approaching employers, B2B sellers, and people chasing partnerships or sponsorships. It automates the pipeline from prospecting to reply: extract business data, enrich and score leads, generate personalized outreach, track pipeline.
 
 This is the first product under the SgOps parent brand (Simeon Gabriels Operations), an AI-powered tool suite.
+
+### Sender Profile (the central abstraction)
+
+The product is not hardcoded to any one kind of sender. Every workspace has a **sender profile** (`workspaces.goal`, `sender_role`, `offer`, `audience`, `cta`, `tone`, `scoring_profile`) captured at `/onboarding` and resolved by `resolveSenderProfile()` in `src/lib/utils/sender-profile.ts`.
+
+The profile drives three things. Change it and all three change:
+
+1. **The AI system prompt** (`src/lib/ai/prompts.ts`) is built from the profile. There is no hardcoded sender identity.
+2. **Campaign playbooks** are generated per (sender profile x audience) by `resolveCampaignPlaybook()` and cached in `niche_playbooks`, keyed by `profile_hash`. Edit your offer and stale playbooks regenerate automatically. The hand-written playbooks in `src/lib/ai/playbooks.ts` are seeds for the `win_clients` goal and a fallback when generation fails.
+3. **Lead scoring** (`SCORING_PROFILES` in `src/lib/utils/constants.ts`) picks weights per goal. A videographer ranks on missing video, a job seeker ranks on hiring signals, a product seller ranks on buying power. Signals are detected once in `scorer.ts` and weighted per profile; a signal weighted 0 never appears in the breakdown.
+
+Goals and their available generators live in `src/lib/utils/profiles.ts`. Never add sender-specific assumptions (video, agencies, pricing) outside a goal preset or a scoring profile.
 
 ## Tech Stack
 

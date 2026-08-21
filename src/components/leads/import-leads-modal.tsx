@@ -10,6 +10,8 @@ import {
   parseCSV,
   autoDetectMapping,
   buildSampleCSV,
+  buildImportRows,
+  detectCustomFields,
   type ColumnMapping,
   type ImportField,
 } from "@/lib/utils/csv";
@@ -99,16 +101,9 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
   async function handleImport() {
     if (!mapping || mapping.email === -1) return;
 
-    const importRows: LeadImportRow[] = rows.map((row) => ({
-      name: mappedValue(row, "name"),
-      email: mappedValue(row, "email"),
-      phone: mappedValue(row, "phone") || undefined,
-      website: mappedValue(row, "website") || undefined,
-      country: mappedValue(row, "country") || undefined,
-      state: mappedValue(row, "state") || undefined,
-      city: mappedValue(row, "city") || undefined,
-      notes: mappedValue(row, "notes") || undefined,
-    }));
+    // Columns left unmapped ride along as custom fields, so a spreadsheet's
+    // extra columns become {{merge_fields}} in campaigns instead of being lost.
+    const importRows: LeadImportRow[] = buildImportRows({ headers, rows }, mapping);
 
     setImporting(true);
     try {
@@ -130,6 +125,7 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
 
   const emailMapped = mapping !== null && mapping.email !== -1;
   const previewRows = rows.slice(0, 3);
+  const customFields = mapping ? detectCustomFields(headers, mapping) : [];
 
   return (
     <Modal open={open} onClose={handleClose} title="Import leads from CSV" size="xl">
@@ -145,7 +141,8 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
             <div className="text-center">
               <p className="text-sm font-medium text-text-1">Choose a CSV file</p>
               <p className="text-xs text-text-3 mt-1">
-                Your contact list from Excel, Google Contacts, or another CRM. Email column required, up to 1,000 rows.
+                Your contact list from Excel, Google Contacts, or another CRM. Email column required, up to 5,000 rows.
+                Any extra columns become merge fields you can use in campaigns.
               </p>
             </div>
           </button>
@@ -205,6 +202,16 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
             <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               Select which column holds the email address to continue.
+            </div>
+          )}
+
+          {/* Unmapped columns become merge fields rather than being discarded */}
+          {customFields.length > 0 && (
+            <div className="text-xs text-text-3 bg-bg-3/50 border border-border rounded-lg px-3 py-2">
+              <span className="text-text-2 font-medium">
+                {customFields.length} extra column{customFields.length !== 1 ? "s" : ""} kept as merge fields:
+              </span>{" "}
+              {customFields.map((f) => `{{${f}}}`).join(", ")}
             </div>
           )}
 
@@ -285,10 +292,20 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
               {result.duplicates_skipped > 0 &&
                 `${result.duplicates_skipped} skipped as duplicates already in your workspace. `}
               {result.invalid_skipped > 0 &&
-                `${result.invalid_skipped} skipped for missing or invalid email.`}
-              {result.duplicates_skipped === 0 && result.invalid_skipped === 0 &&
+                `${result.invalid_skipped} skipped for missing or invalid email. `}
+              {result.blocked_skipped > 0 &&
+                `${result.blocked_skipped} skipped as social pages or personal mailboxes, which are not business inboxes.`}
+              {result.duplicates_skipped === 0 &&
+                result.invalid_skipped === 0 &&
+                result.blocked_skipped === 0 &&
                 "All rows in your file were imported."}
             </p>
+            {result.custom_fields.length > 0 && (
+              <p className="text-xs text-text-3 mt-2">
+                Merge fields now available in campaigns:{" "}
+                {result.custom_fields.map((f) => `{{${f}}}`).join(", ")}
+              </p>
+            )}
           </div>
           <button
             onClick={handleClose}

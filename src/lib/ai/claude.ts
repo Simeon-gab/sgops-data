@@ -10,6 +10,7 @@ export const MODELS = {
 } as const;
 
 export const TOKEN_BUDGETS = {
+  playbook:          1200,
   cold_email:        600,
   call_script:       1000,
   follow_up_sequence: 800,
