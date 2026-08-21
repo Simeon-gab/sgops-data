@@ -386,6 +386,10 @@ export interface Campaign {
   send_window_start: string | null;
   send_window_end: string | null;
   timezone: string;
+  // A guessed info@ address is a research artifact, not a confirmed contact.
+  // Off by default; the user opts in per campaign.
+  allow_guessed_emails: boolean;
+  include_unsubscribe: boolean;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -413,6 +417,7 @@ export interface CampaignRecipient {
   attempts: number;
   last_error: string | null;
   scheduled_for: string | null;
+  claimed_at: string | null;
   sent_at: string | null;
   created_at: string;
 }

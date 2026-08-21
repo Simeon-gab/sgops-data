@@ -11,6 +11,7 @@ import {
   Kanban,
   ShieldCheck,
   Mail,
+  Megaphone,
   Settings,
   Zap,
   LogOut,
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { href: "/pipeline",     icon: Kanban,          label: "Pipeline" },
   { href: "/data-quality", icon: ShieldCheck,     label: "Data Quality" },
   { href: "/outreach",     icon: Mail,            label: "Outreach" },
+  { href: "/campaigns",    icon: Megaphone,       label: "Campaigns" },
 ];
 
 const BOTTOM_ITEMS = [

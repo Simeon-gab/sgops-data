@@ -42,6 +42,14 @@ const EVENT_TIMESTAMP_MAP: Record<string, string | null> = {
   "email.clicked":   "clicked_at",
 };
 
+// Events that mean the address must never be mailed again. Continuing to send
+// after a hard bounce or a complaint is what gets a sending domain blacklisted,
+// and the damage is not confined to the workspace that caused it.
+const SUPPRESSION_REASONS: Record<string, string> = {
+  "email.bounced":    "bounced",
+  "email.complained": "complained",
+};
+
 // Status priority (never downgrade)
 const STATUS_PRIORITY: Record<string, number> = {
   queued:    0,
@@ -76,13 +84,22 @@ export async function POST(req: NextRequest) {
 
   const { data: existing } = await supabase
     .from("outreach_sends")
-    .select("id, status")
+    .select("id, status, workspace_id, to_email")
     .eq("resend_id", resendId)
     .maybeSingle();
 
   if (!existing) {
     // Record not found (could be from a different deployment or test) — still 200
     return NextResponse.json({ received: true });
+  }
+
+  // A bounce or a complaint is the address telling us never to write again.
+  // Recorded before the status bookkeeping, and independently of it, because a
+  // status that was already at its ceiling would otherwise return early below
+  // and leave the address mailable.
+  const suppressionReason = SUPPRESSION_REASONS[event.type];
+  if (suppressionReason && existing.to_email) {
+    await suppress(supabase, existing.workspace_id, existing.to_email, suppressionReason, event.type);
   }
 
   // Only upgrade status, never downgrade
@@ -103,4 +120,46 @@ export async function POST(req: NextRequest) {
     .eq("id", existing.id);
 
   return NextResponse.json({ received: true, status: newStatus });
+}
+
+// ── Suppression ───────────────────────────────────────────────────────────────
+
+async function suppress(
+  // biome-ignore lint: Supabase client generic is not exported in a usable form
+  supabase: any,
+  workspaceId: string,
+  toEmail: string,
+  reason: string,
+  source: string
+): Promise<void> {
+  const email = String(toEmail).trim().toLowerCase();
+  if (!email.includes("@")) return;
+
+  const { data: existing } = await supabase
+    .from("suppressions")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!existing) {
+    // 23505 means a concurrent webhook delivery got there first, which is the
+    // outcome this wanted. Resend retries events, so that is the normal case.
+    const { error } = await supabase.from("suppressions").insert({
+      workspace_id: workspaceId,
+      email,
+      reason,
+      source,
+    });
+    if (error && error.code !== "23505") return;
+  }
+
+  // Anyone queued behind this address in a live campaign comes off the list now
+  // rather than at their turn.
+  await supabase
+    .from("campaign_recipients")
+    .update({ status: "skipped", skip_reason: "suppressed" })
+    .eq("workspace_id", workspaceId)
+    .eq("status", "pending")
+    .eq("to_email", email);
 }
