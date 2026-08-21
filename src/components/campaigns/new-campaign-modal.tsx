@@ -14,10 +14,14 @@ interface NewCampaignModalProps {
   onClose: () => void;
   onCreate: (payload: Record<string, unknown>) => Promise<Campaign>;
   onCreated: (campaign: Campaign) => void;
+  // Explicit leads, when the campaign is being started from a selection on the
+  // leads table. Filters are hidden in that case: the choice was already made.
+  leadIds?: string[];
 }
 
-// The recipient list is chosen with the same filters the leads table uses, so
-// "everyone I was just looking at" is one step rather than a bulk selection.
+// Two ways in. From the campaigns page the list is described by the same
+// filters the leads table uses, so "everyone I was just looking at" is one
+// step. From a selection on the leads table the ids come in directly.
 
 const TIER_OPTIONS = [
   { value: "",     label: "Any tier" },
@@ -34,7 +38,11 @@ const STAGE_OPTIONS = [
   { value: "qualified", label: "Qualified" },
 ];
 
-export function NewCampaignModal({ open, onClose, onCreate, onCreated }: NewCampaignModalProps) {
+export function NewCampaignModal({
+  open, onClose, onCreate, onCreated, leadIds,
+}: NewCampaignModalProps) {
+  const fromSelection = Boolean(leadIds?.length);
+
   const [name, setName] = useState("");
   const [tier, setTier] = useState("");
   const [stage, setStage] = useState("");
@@ -52,10 +60,14 @@ export function NewCampaignModal({ open, onClose, onCreate, onCreated }: NewCamp
       const campaign = await onCreate({
         name: name.trim(),
         allow_guessed_emails: allowGuessed,
-        filters: {
-          ...(tier ? { tier } : {}),
-          ...(stage ? { stage } : {}),
-        },
+        ...(fromSelection
+          ? { lead_ids: leadIds }
+          : {
+              filters: {
+                ...(tier ? { tier } : {}),
+                ...(stage ? { stage } : {}),
+              },
+            }),
       });
 
       toast("Campaign created", "success");
@@ -89,26 +101,36 @@ export function NewCampaignModal({ open, onClose, onCreate, onCreated }: NewCamp
           onChange={(e) => setName(e.target.value)}
         />
 
-        <div className="grid grid-cols-2 gap-3">
-          <Select
-            label="Tier"
-            value={tier}
-            onChange={(e) => setTier(e.target.value)}
-            options={TIER_OPTIONS}
-          />
+        {fromSelection ? (
+          <p className="text-xs text-text-3">
+            The <span className="text-text-2">{leadIds?.length} selected leads</span> join this
+            campaign, minus any without a mailable address. Nothing sends until you write the
+            email and start it.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Tier"
+                value={tier}
+                onChange={(e) => setTier(e.target.value)}
+                options={TIER_OPTIONS}
+              />
 
-          <Select
-            label="Stage"
-            value={stage}
-            onChange={(e) => setStage(e.target.value)}
-            options={STAGE_OPTIONS}
-          />
-        </div>
+              <Select
+                label="Stage"
+                value={stage}
+                onChange={(e) => setStage(e.target.value)}
+                options={STAGE_OPTIONS}
+              />
+            </div>
 
-        <p className="text-xs text-text-3">
-          Every lead matching these filters that has a mailable address joins the campaign.
-          Nothing sends until you write the email and start it.
-        </p>
+            <p className="text-xs text-text-3">
+              Every lead matching these filters that has a mailable address joins the campaign.
+              Nothing sends until you write the email and start it.
+            </p>
+          </>
+        )}
 
         <label className="flex items-start gap-2.5 cursor-pointer">
           <input

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, X, CheckCircle, AlertCircle } from "lucide-react";
+import { Send, X, CheckCircle, AlertCircle, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import type { Lead, OutreachTemplate } from "@/lib/utils/types";
@@ -10,6 +10,10 @@ interface BatchSendBarProps {
   selectedLeads: Lead[];
   onClear: () => void;
   onSent?: () => void;
+  // Opens the campaign builder with this selection. Batch send mails whatever
+  // was already generated per lead; a campaign writes one email for all of
+  // them and paces the delivery. Both start from the same selection.
+  onCampaign?: () => void;
 }
 
 interface SendCandidate {
@@ -18,7 +22,7 @@ interface SendCandidate {
   reason?: string;
 }
 
-export function BatchSendBar({ selectedLeads, onClear, onSent }: BatchSendBarProps) {
+export function BatchSendBar({ selectedLeads, onClear, onSent, onCampaign }: BatchSendBarProps) {
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const [sending, setSending] = useState(false);
@@ -97,6 +101,12 @@ export function BatchSendBar({ selectedLeads, onClear, onSent }: BatchSendBarPro
           lead{selectedLeads.length !== 1 ? "s" : ""} selected
         </span>
         <div className="h-4 w-px bg-border" />
+        {onCampaign && (
+          <Button size="sm" variant="secondary" onClick={onCampaign}>
+            <Megaphone className="h-3.5 w-3.5" />
+            New Campaign
+          </Button>
+        )}
         <Button size="sm" onClick={openModal}>
           <Send className="h-3.5 w-3.5" />
           Send Emails

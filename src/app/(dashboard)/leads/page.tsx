@@ -3,8 +3,10 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Search, Download, Upload, X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLeads } from "@/hooks/useLeads";
+import { createCampaign } from "@/hooks/useCampaigns";
+import { NewCampaignModal } from "@/components/campaigns/new-campaign-modal";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
 import { BatchSendBar } from "@/components/outreach/batch-send-bar";
@@ -119,6 +121,9 @@ export default function LeadsPage() {
   }
 
   const [importOpen, setImportOpen] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(false);
+
+  const router = useRouter();
 
   // Table selection state
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -376,8 +381,21 @@ export default function LeadsPage() {
           selectedLeads={selectedLeads}
           onClear={clearSelection}
           onSent={refetch}
+          onCampaign={() => setCampaignOpen(true)}
         />
       )}
+
+      <NewCampaignModal
+        open={campaignOpen}
+        onClose={() => setCampaignOpen(false)}
+        onCreate={createCampaign}
+        onCreated={(campaign) => {
+          setCampaignOpen(false);
+          clearSelection();
+          router.push(`/campaigns/${campaign.id}`);
+        }}
+        leadIds={Array.from(selectedIds)}
+      />
     </div>
   );
 }

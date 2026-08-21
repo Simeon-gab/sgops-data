@@ -19,6 +19,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+// Creating a campaign does not need the campaign list, and the leads page only
+// wants this much. Exported on its own so opening that page does not fetch a
+// list it will never show.
+export async function createCampaign(payload: Record<string, unknown>): Promise<Campaign> {
+  const data = await request<{ campaign: Campaign }>("/api/campaigns", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data.campaign;
+}
+
 // ── List ──────────────────────────────────────────────────────────────────────
 
 export function useCampaigns() {
@@ -43,12 +54,9 @@ export function useCampaigns() {
 
   const create = useCallback(
     async (payload: Record<string, unknown>) => {
-      const data = await request<{ campaign: Campaign }>("/api/campaigns", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const campaign = await createCampaign(payload);
       await refetch();
-      return data.campaign;
+      return campaign;
     },
     [refetch]
   );
