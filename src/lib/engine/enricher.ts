@@ -189,19 +189,32 @@ async function checkGoogleAds(name: string, city: string, key: string): Promise<
   }
 }
 
+// Platforms whose presence implies the business already produces video content
+// (YouTube and TikTok are video-native; Instagram is video-heavy via Reels).
+const VIDEO_SOCIAL_PLATFORMS: SocialProfile["platform"][] = ["youtube", "tiktok", "instagram"];
+
+// Every platform we attempt to discover via Google search during enrichment.
+const SEARCHABLE_PLATFORMS: SocialProfile["platform"][] = [
+  "instagram", "facebook", "tiktok", "youtube", "linkedin",
+];
+
+function hasVideoSignal(socials: SocialProfile[]): boolean {
+  return socials.some((s) => VIDEO_SOCIAL_PLATFORMS.includes(s.platform));
+}
+
 // Search Google for a business's social profile on a specific platform.
-// Returns the profile if the top 3 results contain a matching URL.
+// Returns the profile if the top results contain a matching URL.
 async function searchSocialProfile(
   name: string,
   city: string,
-  platform: "instagram" | "facebook",
+  platform: SocialProfile["platform"],
   key: string
 ): Promise<SocialProfile | null> {
   try {
-    const data = await serpSearch(`${name} ${city} ${platform}`, 3, key);
+    const data = await serpSearch(`${name} ${city} ${platform}`, 4, key);
     const pattern = SOCIAL_PATTERNS.find((p) => p.platform === platform);
     if (!pattern) return null;
-    for (const result of data.organic_results?.slice(0, 3) ?? []) {
+    for (const result of data.organic_results?.slice(0, 4) ?? []) {
       if (!result.link) continue;
       const m = result.link.match(pattern.re);
       if (!m) continue;
@@ -230,12 +243,14 @@ export async function enrichLead(
       : Promise.resolve(false),
   ]);
 
-  // Secondary social detection: search for platforms not already found on the website.
+  // Secondary social detection: search Google for every platform not already
+  // linked on the website. This catches businesses whose social presence lives
+  // off-site (e.g. an active Instagram but a minimal website).
   // Skipped gracefully when no SerpAPI key is configured.
   let extraSocials: SocialProfile[] = [];
   if (options.serpApiKey) {
     const foundPlatforms = new Set((scan?.social_profiles ?? []).map((p) => p.platform));
-    const missing = (["instagram", "facebook"] as const).filter((p) => !foundPlatforms.has(p));
+    const missing = SEARCHABLE_PLATFORMS.filter((p) => !foundPlatforms.has(p));
     if (missing.length > 0) {
       const found = await Promise.all(
         missing.map((p) =>
@@ -246,11 +261,16 @@ export async function enrichLead(
     }
   }
 
+  const socialProfiles = [...(scan?.social_profiles ?? []), ...extraSocials];
+
   return {
-    has_video_content:   scan?.has_video_content  ?? false,
+    // Video is present if detected on the website OR the business is on a
+    // video-native platform (YouTube/TikTok/Instagram). Prevents falsely
+    // reporting "no video content" for businesses whose video lives on social.
+    has_video_content:   (scan?.has_video_content ?? false) || hasVideoSignal(socialProfiles),
     has_blog:            scan?.has_blog           ?? false,
     website_quality:     url ? (scan?.website_quality ?? "minimal") : null,
-    social_profiles:     [...(scan?.social_profiles ?? []), ...extraSocials],
+    social_profiles:     socialProfiles,
     runs_google_ads:     googleAds,
     runs_meta_ads:       false,
     competitors:         options.competitors       ?? [],

@@ -101,10 +101,24 @@ const PLATFORM_ICONS: Record<string, React.ElementType> = {
 
 // ── AI summary ────────────────────────────────────────────────────────────────
 
-function AISummarySection({ leadId }: { leadId: string }) {
+function AISummarySection({ leadId, enriched }: { leadId: string; enriched: boolean }) {
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Intelligence is only reliable once digital-presence signals are gathered.
+  // Before enrichment we refuse to generate it rather than assert unverified facts.
+  if (!enriched) {
+    return (
+      <div className="flex items-start gap-2">
+        <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+        <p className="text-xs text-text-3 leading-relaxed">
+          Run enrichment first. Until this lead is enriched, its digital presence
+          (video, social, ads) is unknown, so an AI summary would be unreliable.
+        </p>
+      </div>
+    );
+  }
 
   const generate = async () => {
     setLoading(true);
@@ -364,7 +378,7 @@ export function OverviewTab({ lead }: OverviewTabProps) {
 
       {/* AI intelligence summary */}
       <Section title="AI Intelligence">
-        <AISummarySection leadId={lead.id} />
+        <AISummarySection leadId={lead.id} enriched={lead.enriched_at !== null} />
       </Section>
 
     </div>

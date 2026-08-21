@@ -115,7 +115,9 @@ export async function POST(req: NextRequest) {
     stage: "new",
     source: record.source === "mock" ? "manual" : record.source,
     score: 0,
-    tier: "cold",
+    // Not enriched yet: digital-presence signals are unknown, not confirmed absent.
+    // Scoring/tiering happens in /api/enrich once real signals are gathered.
+    tier: "unscored",
     extracted_at: now,
     has_video_content: false,
     has_blog: false,

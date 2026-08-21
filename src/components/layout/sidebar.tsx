@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
 import {
@@ -13,6 +14,7 @@ import {
   Settings,
   Zap,
   LogOut,
+  User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -38,10 +40,31 @@ export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [signingOut, setSigningOut] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (active) setEmail(data.user?.email ?? null);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut();
+      onClose?.();
+      router.push("/login");
+      router.refresh();
+    } catch {
+      setSigningOut(false);
+    }
   }
 
   return (
@@ -103,12 +126,25 @@ export function Sidebar({ onClose }: SidebarProps) {
             </Link>
           );
         })}
+        {email && (
+          <div className="flex items-center gap-2.5 px-3 py-2 min-w-0" title={email}>
+            <div className="w-7 h-7 rounded-full bg-bg-3 flex items-center justify-center shrink-0">
+              <User className="h-3.5 w-3.5 text-text-3" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-text-3 leading-none">Signed in as</p>
+              <p className="text-xs text-text-1 leading-tight mt-1 truncate">{email}</p>
+            </div>
+          </div>
+        )}
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-text-3 hover:text-red-400 hover:bg-red-500/5 transition-colors w-full text-left"
+          disabled={signingOut}
+          aria-label="Sign out"
+          className="mt-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 border border-red-500/30 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50 active:bg-red-500/20 transition-colors w-full disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <LogOut className="h-4 w-4 shrink-0" />
-          Sign out
+          <LogOut className={clsx("h-4 w-4 shrink-0", signingOut && "animate-pulse")} />
+          {signingOut ? "Signing out..." : "Sign out"}
         </button>
       </div>
     </aside>

@@ -3,7 +3,7 @@ import type { LeadTier, PipelineStage, DataQuality } from "@/lib/utils/types";
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: "default" | "hot" | "warm" | "cold" | "verified" | "partial" | "unverified";
+  variant?: "default" | "hot" | "warm" | "cold" | "unscored" | "verified" | "partial" | "unverified";
   className?: string;
 }
 
@@ -17,6 +17,7 @@ export function Badge({ children, variant = "default", className }: BadgeProps) 
           "bg-red-500/10 text-red-400 border border-red-500/20": variant === "hot",
           "bg-amber-500/10 text-amber-400 border border-amber-500/20": variant === "warm",
           "bg-slate-500/10 text-slate-400 border border-slate-500/20": variant === "cold",
+          "bg-bg-3 text-text-3 border border-dashed border-border": variant === "unscored",
           "bg-green-500/10 text-green-400 border border-green-500/20": variant === "verified",
           "bg-blue-500/10 text-blue-400 border border-blue-500/20": variant === "partial",
           "bg-gray-500/10 text-gray-400 border border-gray-500/20": variant === "unverified",
@@ -34,6 +35,7 @@ export function TierBadge({ tier }: { tier: LeadTier }) {
     hot: "Hot",
     warm: "Warm",
     cold: "Cold",
+    unscored: "Unscored",
   };
   return <Badge variant={tier}>{labels[tier]}</Badge>;
 }

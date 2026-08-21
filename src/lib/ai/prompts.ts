@@ -92,6 +92,10 @@ export function generateObservations(lead: Lead): string[] {
 
 // ── Minimal lead snapshot sent to AI (avoids leaking internal IDs) ─────────────
 
+// Digital-presence fields are "unknown" until the lead has been enriched.
+// "unknown" must never be interpreted as "confirmed absent".
+type Unknown = "unknown";
+
 interface LeadSnapshot {
   name: string;
   city: string;
@@ -100,18 +104,20 @@ interface LeadSnapshot {
   niche: string;
   rating: number | null;
   review_count: number;
-  has_video: boolean;
-  has_blog: boolean;
+  enriched: boolean;
+  has_video: boolean | Unknown;
+  has_blog: boolean | Unknown;
   website: string | null;
-  website_quality: string | null;
-  social_platforms: string[];
-  runs_ads: boolean;
+  website_quality: string | Unknown | null;
+  social_platforms: string[] | Unknown;
+  runs_ads: boolean | Unknown;
   competitor_names: string[];
   score: number;
   tier: string;
 }
 
 function leadSnapshot(lead: Lead): LeadSnapshot {
+  const enriched = lead.enriched_at !== null;
   return {
     name: lead.name,
     city: lead.city,
@@ -120,12 +126,15 @@ function leadSnapshot(lead: Lead): LeadSnapshot {
     niche: lead.niche_label,
     rating: lead.rating,
     review_count: lead.review_count,
-    has_video: lead.has_video_content,
-    has_blog: lead.has_blog,
+    enriched,
+    // Digital-presence signals are only trustworthy after enrichment. Before that
+    // they are reported as "unknown" so the model cannot mistake a blank for a "no".
+    has_video: enriched ? lead.has_video_content : "unknown",
+    has_blog: enriched ? lead.has_blog : "unknown",
     website: lead.website,
-    website_quality: lead.website_quality,
-    social_platforms: lead.social_profiles.map((s) => s.platform),
-    runs_ads: lead.runs_google_ads || lead.runs_meta_ads,
+    website_quality: enriched ? lead.website_quality : "unknown",
+    social_platforms: enriched ? lead.social_profiles.map((s) => s.platform) : "unknown",
+    runs_ads: enriched ? lead.runs_google_ads || lead.runs_meta_ads : "unknown",
     competitor_names: lead.competitors.map((c) => c.name),
     score: lead.score,
     tier: lead.tier,
@@ -281,10 +290,17 @@ Keep it concise, confident, and specific to their niche. Return as JSON with the
 }
 
 export function leadIntelPrompt(lead: Lead): string {
-  return `Summarize this lead's sales potential in 2-3 sentences.
+  const snapshot = leadSnapshot(lead);
+  return `Summarize this lead's sales potential for a creative agency in 2-3 sentences.
 
-Lead data:
-${JSON.stringify(leadSnapshot(lead), null, 2)}
+Lead data (JSON):
+${JSON.stringify(snapshot, null, 2)}
 
-Be specific about why they are ${lead.tier} tier (score: ${lead.score}/100). Reference concrete signals. Focus on the biggest opportunity and biggest risk. Plain text, no headers, no bullet points.`;
+Accuracy rules (follow strictly):
+- The JSON above is the ONLY thing you know about this business. Do not invent facts or infer signals that are not present.
+- A field set to "unknown" means it was NOT checked. Never describe an "unknown" field as a lack or absence (do not say "no video", "no social media", "no ads" for unknown fields).
+- Report a signal as absent ONLY when "enriched" is true AND that field is explicitly false or empty. Even then, phrase it as "no X detected" rather than stating as certain fact that they have none, because detection can miss off-site profiles.
+- An empty social_platforms array or has_video:false reflects what our scan found, not proof the business has no presence.
+
+Focus on the biggest opportunity and the biggest risk in winning them as a client, grounded only in the data above. Plain text, no headers, no bullet points.`;
 }

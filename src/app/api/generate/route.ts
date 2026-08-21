@@ -157,8 +157,19 @@ export async function POST(req: NextRequest) {
   // ── Generate ─────────────────────────────────────────────────────────────────
 
   try {
-    // lead_intel: not stored in DB, returned directly
+    // lead_intel: not stored in DB, returned directly.
+    // Refuse un-enriched leads: without enrichment the digital-presence signals
+    // are unknown, and the model would otherwise report them as confirmed absent.
     if (type === "lead_intel") {
+      if (!lead.enriched_at) {
+        return NextResponse.json<ApiError>(
+          {
+            error: "Enrich this lead before generating AI intelligence.",
+            code: "not_enriched",
+          },
+          { status: 409 }
+        );
+      }
       const { summary, tokensUsed } = await generateLeadIntel(ctx);
       return NextResponse.json({ summary, tokens_used: tokensUsed });
     }

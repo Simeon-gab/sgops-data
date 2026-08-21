@@ -45,7 +45,7 @@ export interface Lead {
   stage: PipelineStage;
   last_contacted_at: string | null;
   notes: string;
-  source: "google_places" | "serpapi" | "directory" | "manual";
+  source: "google_places" | "serpapi" | "directory" | "manual" | "csv_import";
   extracted_at: string;
   enriched_at: string | null;
   created_at: string;
@@ -83,7 +83,9 @@ export type PipelineStage =
 
 export type DataQuality = "verified" | "partial" | "unverified";
 
-export type LeadTier = "hot" | "warm" | "cold";
+// "unscored" = lead has not been enriched yet, so its digital-presence signals
+// are unknown. It must never be treated as a confirmed "cold" lead.
+export type LeadTier = "hot" | "warm" | "cold" | "unscored";
 
 export interface Workspace {
   id: string;
@@ -219,6 +221,26 @@ export interface LeadFilters {
 export interface ApiError {
   error: string;
   code: string;
+}
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+
+export interface LeadImportRow {
+  name: string;
+  email: string;
+  phone?: string;
+  website?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  notes?: string;
+}
+
+export interface LeadImportResponse {
+  imported: number;
+  duplicates_skipped: number;
+  invalid_skipped: number;
+  leads: Lead[];
 }
 
 // ── Engine types ──────────────────────────────────────────────────────────────

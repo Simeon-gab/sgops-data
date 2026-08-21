@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Search, Download, X } from "lucide-react";
+import { Search, Download, Upload, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useLeads } from "@/hooks/useLeads";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
 import { BatchSendBar } from "@/components/outreach/batch-send-bar";
+import { ImportLeadsModal } from "@/components/leads/import-leads-modal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { toast } from "@/components/ui/toast";
 import { NICHES, PIPELINE_STAGES } from "@/lib/utils/constants";
@@ -116,6 +117,8 @@ export default function LeadsPage() {
     }
   }
 
+  const [importOpen, setImportOpen] = useState(false);
+
   // Table selection state
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -150,6 +153,13 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border text-text-3 hover:text-text-1 hover:border-border-hover transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Import</span> CSV
+          </button>
           {leads.length > 0 && (
             <button
               onClick={handleExport}
@@ -206,6 +216,7 @@ export default function LeadsPage() {
             <option value="hot">Hot</option>
             <option value="warm">Warm</option>
             <option value="cold">Cold</option>
+            <option value="unscored">Unscored</option>
           </select>
 
           {/* Quality */}
@@ -290,12 +301,21 @@ export default function LeadsPage() {
               Run a prospect search to start building your leads database.
             </p>
           </div>
-          <Link
-            href="/prospect"
-            className="px-5 py-2.5 rounded-lg bg-gold text-bg-0 font-medium text-sm hover:bg-gold-bright transition-colors"
-          >
-            Start prospecting
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/prospect"
+              className="px-5 py-2.5 rounded-lg bg-gold text-bg-0 font-medium text-sm hover:bg-gold-bright transition-colors"
+            >
+              Start prospecting
+            </Link>
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border text-sm text-text-2 hover:text-text-1 hover:border-border-hover transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </button>
+          </div>
         </div>
       )}
 
@@ -329,6 +349,12 @@ export default function LeadsPage() {
           onLeadUpdated={(updated) => setSelectedLead(updated)}
         />
       </ErrorBoundary>
+
+      <ImportLeadsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={refetch}
+      />
 
       {selectedIds.size > 0 && (
         <BatchSendBar
