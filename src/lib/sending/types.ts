@@ -11,7 +11,12 @@ export const TRANSPORT_KINDS: TransportKind[] = ["resend", "smtp", "gmail", "out
 
 // Kinds with a working implementation today. The others exist in the type so
 // the database and UI can name them before the code can deliver through them.
-export const IMPLEMENTED_KINDS: TransportKind[] = ["resend"];
+export const IMPLEMENTED_KINDS: TransportKind[] = ["resend", "smtp"];
+
+// Kinds that cannot work without credentials of their own. A resend identity
+// may legitimately have none and fall through to the platform's key; an SMTP
+// identity with no host and password is just broken.
+export const KINDS_REQUIRING_SECRETS: TransportKind[] = ["smtp"];
 
 export interface OutboundMessage {
   to: string;
@@ -33,6 +38,15 @@ export interface Transport {
   kind: TransportKind;
   from: { email: string; name: string | null };
   send(message: OutboundMessage): Promise<SentMessage>;
+
+  // Proves the credentials work without sending anything. Only some providers
+  // can answer this: an API key is only really tested by using it, whereas an
+  // SMTP server will happily complete a login and say nothing more.
+  verify?(): Promise<void>;
+
+  // Releases held connections at the end of a run. SMTP keeps a socket open
+  // between messages; an HTTP API has nothing to release.
+  close?(): Promise<void>;
 }
 
 // A sending identity with its credentials already decrypted, which only ever

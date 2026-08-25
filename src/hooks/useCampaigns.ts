@@ -106,6 +106,9 @@ export function useCampaign(id: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  // The most recent send error from a poll. A campaign whose every send is
+  // failing retryably otherwise looks identical to one that is simply waiting.
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
     try {
@@ -164,7 +167,8 @@ export function useCampaign(id: string) {
       try {
         const result = await request<{
           done: boolean;
-          sent: number; skipped: number; failed: number;
+          sent: number; skipped: number; failed: number; retrying: number;
+          last_error: string | null;
           counts: RecipientCounts | null;
           status: string;
           reason: Pacing["reason"];
@@ -174,6 +178,11 @@ export function useCampaign(id: string) {
         if (cancelled) return;
 
         if (result.counts) setCounts(result.counts);
+
+        // Cleared on any successful send, so a one-off failure does not stay
+        // on screen once the campaign recovers.
+        if (result.sent > 0) setSendError(null);
+        else if (result.retrying > 0 || result.failed > 0) setSendError(result.last_error);
         setPacing({ allowed: 0, reason: result.reason, resume_at: result.resume_at });
 
         if (result.done || result.status !== "sending") {
@@ -198,7 +207,7 @@ export function useCampaign(id: string) {
     };
   }, [sending, id, refetch]);
 
-  return { campaign, counts, pacing, sentToday, loading, error, working, refetch, patch };
+  return { campaign, counts, pacing, sentToday, loading, error, working, sendError, refetch, patch };
 }
 
 // ── Recipients ────────────────────────────────────────────────────────────────

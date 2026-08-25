@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import { encryptSecrets, isEncryptionConfigured } from "@/lib/sending/crypto";
-import { IMPLEMENTED_KINDS, TRANSPORT_KINDS, type TransportKind } from "@/lib/sending/types";
+import { IMPLEMENTED_KINDS, KINDS_REQUIRING_SECRETS, TRANSPORT_KINDS, type TransportKind } from "@/lib/sending/types";
 import type { ApiError, SendingIdentity, SendingIdentityPublic } from "@/lib/utils/types";
 
 // Credentials never leave the server, so every response is built from this
@@ -138,6 +138,16 @@ export async function POST(req: NextRequest) {
   }
 
   const hasSecrets = Boolean(body.secrets && Object.keys(body.secrets).length > 0);
+
+  // An SMTP identity with no server to talk to would be accepted here and then
+  // fail on the first message of a campaign, which is the worst place to find
+  // out. A resend identity with no key legitimately uses the platform's.
+  if (KINDS_REQUIRING_SECRETS.includes(kind) && !hasSecrets) {
+    return NextResponse.json<ApiError>(
+      { error: `A ${kind} identity needs its own credentials`, code: "credentials_required" },
+      { status: 400 }
+    );
+  }
 
   let encrypted: string | null = null;
   if (hasSecrets) {

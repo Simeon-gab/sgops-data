@@ -44,6 +44,8 @@ export async function POST(
     sent:      drive.sent,
     skipped:   drive.skipped,
     failed:    drive.failed,
+    retrying:  drive.retrying,
+    last_error: drive.lastError,
     counts:    drive.counts,
     status:    drive.status,
     reason:    drive.reason,

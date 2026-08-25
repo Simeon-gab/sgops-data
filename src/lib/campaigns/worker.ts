@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncRecipientCounts, type RecipientCounts } from "./recipients";
 import { loadSuppressions, screen, type SkipReason } from "./eligibility";
 import { computeAllowance, startOfLocalDay, type PauseReason } from "./schedule";
-import { textToHtml } from "@/lib/api/resend";
+import { textToHtml } from "@/lib/sending/html";
 import { resolveTransport } from "@/lib/sending/resolve";
 import type { Transport } from "@/lib/sending/types";
 import type { Campaign, CampaignRecipient, Lead, Workspace } from "@/lib/utils/types";
@@ -50,6 +50,13 @@ export interface DriveResult {
   sent: number;
   skipped: number;
   failed: number;
+  // Sends that failed but still have retries left. Counted separately from
+  // `failed`, which means "gave up", because a run where everything failed
+  // retryably would otherwise report zeros across the board and read as though
+  // nothing had happened at all.
+  retrying: number;
+  // The most recent send error in this run, whether or not it was terminal.
+  lastError: string | null;
   counts: RecipientCounts | null;
   status: string;
   reason: PauseReason | null;
@@ -65,8 +72,8 @@ export async function driveCampaign(
   const { campaign, workspace, actorId, origin, deadline } = options;
 
   const idle = (over: Partial<DriveResult> = {}): DriveResult => ({
-    done: false, sent: 0, skipped: 0, failed: 0, counts: null,
-    status: campaign.status, reason: null, resumeAt: null, ...over,
+    done: false, sent: 0, skipped: 0, failed: 0, retrying: 0, lastError: null,
+    counts: null, status: campaign.status, reason: null, resumeAt: null, ...over,
   });
 
   if (campaign.status !== "sending") {
@@ -138,7 +145,8 @@ export async function driveCampaign(
   const unsubscribeBase = campaign.include_unsubscribe ? `${origin}/api/unsubscribe` : null;
   const gapMs = Math.max(campaign.throttle_seconds * 1000, MIN_GAP_MS);
 
-  let sent = 0, skipped = 0, failed = 0;
+  let sent = 0, skipped = 0, failed = 0, retrying = 0;
+  let lastError: string | null = null;
   let budget = Math.min(allowance.allowed, MAX_PER_RUN);
   let lastSendAt = lastSentAt?.getTime() ?? 0;
   let pauseReason: PauseReason | null = null;
@@ -279,7 +287,9 @@ export async function driveCampaign(
         })
         .eq("id", recipient.id);
 
+      lastError = message;
       if (exhausted) failed++;
+      else retrying++;
       // A provider that just rejected a send is unlikely to accept the next one
       // immediately, so a failure still waits out the gap.
       lastSendAt = Date.now();
@@ -288,6 +298,15 @@ export async function driveCampaign(
   }
 
   // ── Wrap up ─────────────────────────────────────────────────────────────────
+
+  // SMTP holds a socket open between messages. Leaving it open would leak a
+  // connection per run and eventually have the mail server refuse new ones.
+  try {
+    await transport.close?.();
+  } catch {
+    // A connection that will not close cleanly has no bearing on whether the
+    // messages already went out.
+  }
 
   const counts = await syncRecipientCounts(supabase, campaign.id);
 
@@ -313,7 +332,7 @@ export async function driveCampaign(
 
   return {
     done: status === "completed",
-    sent, skipped, failed, counts, status,
+    sent, skipped, failed, retrying, lastError, counts, status,
     reason: pauseReason,
     resumeAt,
   };

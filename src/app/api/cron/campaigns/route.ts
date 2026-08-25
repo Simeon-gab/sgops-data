@@ -102,6 +102,8 @@ export async function GET(req: NextRequest) {
         sent:    drive.sent,
         skipped: drive.skipped,
         failed:  drive.failed,
+        retrying: drive.retrying,
+        last_error: drive.lastError,
         status:  drive.status,
         reason:  drive.reason,
         error:   drive.error ?? null,

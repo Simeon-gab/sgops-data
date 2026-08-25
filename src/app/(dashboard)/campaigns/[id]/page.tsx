@@ -24,7 +24,7 @@ const STATUS_VARIANT: Record<CampaignStatus, "verified" | "partial" | "unverifie
 };
 
 export default function CampaignDetailPage({ params }: { params: { id: string } }) {
-  const { campaign, counts, pacing, sentToday, loading, error, working, patch } =
+  const { campaign, counts, pacing, sentToday, loading, error, working, sendError, patch } =
     useCampaign(params.id);
 
   const [subject, setSubject] = useState("");
@@ -163,6 +163,17 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             pacing={pacing}
             sentToday={sentToday}
           />
+        </div>
+      )}
+
+      {sendError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+          <p className="text-sm text-red-400">The mail server is rejecting messages.</p>
+          <p className="text-xs text-red-400/80 mt-1 leading-relaxed">{sendError}</p>
+          <p className="text-xs text-text-3 mt-2 leading-relaxed">
+            Recipients stay queued and are retried. Pause the campaign and fix the sending
+            identity in Settings if this keeps happening.
+          </p>
         </div>
       )}
 

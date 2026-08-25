@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { decryptSecrets } from "./crypto";
 import { createResendTransport } from "./transports/resend";
+import { createSmtpTransport } from "./transports/smtp";
 import type { ResolvedIdentity, Transport, TransportKind } from "./types";
 import { TransportError } from "./types";
 import type { SendingIdentity, Workspace } from "@/lib/utils/types";
@@ -15,9 +16,10 @@ import type { SendingIdentity, Workspace } from "@/lib/utils/types";
 
 type TransportFactory = (identity: ResolvedIdentity) => Transport;
 
-// Adding SMTP is a file under transports/ and a line here.
+// Adding a provider is a file under transports/ and a line here.
 const FACTORIES: Partial<Record<TransportKind, TransportFactory>> = {
   resend: createResendTransport,
+  smtp:   createSmtpTransport,
 };
 
 export interface ResolveOptions {

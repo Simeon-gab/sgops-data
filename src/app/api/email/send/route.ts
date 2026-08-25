@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
-import { textToHtml } from "@/lib/api/resend";
+import { textToHtml } from "@/lib/sending/html";
 import { resolveTransport } from "@/lib/sending/resolve";
 import type { Lead, OutreachSend, ApiError } from "@/lib/utils/types";
 
@@ -194,6 +194,13 @@ export async function POST(req: NextRequest) {
     if (i + CHUNK_SIZE < queuedSends.length) {
       await delay(CHUNK_DELAY_MS);
     }
+  }
+
+  // SMTP holds a socket open between messages; an HTTP API has nothing here.
+  try {
+    await transport.close?.();
+  } catch {
+    // Irrelevant to whether the batch went out.
   }
 
   return NextResponse.json({
