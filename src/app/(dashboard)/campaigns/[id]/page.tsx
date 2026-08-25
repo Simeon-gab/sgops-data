@@ -6,13 +6,14 @@ import { ArrowLeft, Pause, Play, Send, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { TemplateEditor } from "@/components/campaigns/template-editor";
 import { CampaignProgress } from "@/components/campaigns/campaign-progress";
 import { RecipientTable } from "@/components/campaigns/recipient-table";
 import { useCampaign, type PreflightReport } from "@/hooks/useCampaigns";
 import { SKIP_REASON_LABELS, type SkipReason } from "@/lib/campaigns/eligibility";
-import type { CampaignStatus } from "@/lib/utils/types";
+import type { CampaignStatus, SendingIdentityPublic } from "@/lib/utils/types";
 
 const STATUS_VARIANT: Record<CampaignStatus, "verified" | "partial" | "unverified" | "warm" | "default"> = {
   draft:     "default",
@@ -33,6 +34,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [fromName, setFromName] = useState("");
   const [dirty, setDirty] = useState(false);
   const [showPacing, setShowPacing] = useState(false);
+  const [identities, setIdentities] = useState<SendingIdentityPublic[]>([]);
   const [preflight, setPreflight] = useState<PreflightReport | null>(null);
 
   // Seeded once from the server copy. Re-seeding on every refetch would undo
@@ -44,6 +46,22 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     setFromEmail(campaign.from_email ?? "");
     setFromName(campaign.from_name ?? "");
   }, [campaign, dirty]);
+
+  // Which mailboxes this workspace can send from. Absent when none are set up,
+  // in which case the from-address fields below are the whole story.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/sending-identities");
+        const data = await res.json();
+        if (!cancelled && res.ok) setIdentities(data.identities ?? []);
+      } catch {
+        // The campaign is still editable without the picker.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   if (loading) return <p className="text-sm text-text-3">Loading campaign...</p>;
 
@@ -211,17 +229,49 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           </p>
         )}
 
+        {identities.length > 0 ? (
+          <div className="mb-3">
+            <Select
+              label="Send from"
+              value={campaign.sending_identity_id ?? ""}
+              disabled={!isDraft}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Saved immediately rather than on the Save button: the server
+                // copies the mailbox's address onto the campaign, so the fields
+                // below have to come back from it rather than be guessed here.
+                void patch(value ? { sending_identity_id: value } : { sending_identity_id: null })
+                  .catch((err) =>
+                    toast(err instanceof Error ? err.message : "Could not change mailbox", "error")
+                  );
+              }}
+              options={[
+                { value: "", label: "A one-off address for this campaign" },
+                ...identities.map((identity) => ({
+                  value: identity.id,
+                  label: identity.from_name
+                    ? `${identity.from_name} <${identity.from_email}>`
+                    : identity.from_email,
+                })),
+              ]}
+            />
+            <p className="text-xs text-text-3 mt-1.5">
+              Mailboxes come from Settings. Choosing one here overrides the address below.
+            </p>
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-3 mb-3">
           <Input
             label="From name"
             value={fromName}
-            disabled={!isDraft}
+            disabled={!isDraft || Boolean(campaign.sending_identity_id)}
             onChange={(e) => { setFromName(e.target.value); setDirty(true); }}
           />
           <Input
             label="From address"
             value={fromEmail}
-            disabled={!isDraft}
+            disabled={!isDraft || Boolean(campaign.sending_identity_id)}
             placeholder="you@yourdomain.com"
             onChange={(e) => { setFromEmail(e.target.value); setDirty(true); }}
           />

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Webhook } from "svix";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // ── POST /api/webhooks ────────────────────────────────────────────────────────
@@ -7,11 +8,10 @@ import { createServiceClient } from "@/lib/supabase/server";
 // Events: email.sent, email.delivered, email.opened, email.clicked,
 //         email.bounced, email.delivery_delayed, email.complained
 //
-// NOTE: For production, add Svix signature verification:
-//   npm install svix
-//   import { Webhook } from "svix";
-//   const wh = new Webhook(process.env.RESEND_WEBHOOK_SECRET!);
-//   wh.verify(rawBody, headers);
+// Every request is signature-verified with the Svix scheme Resend uses. This
+// endpoint is public by necessity and it writes to the suppression list, so an
+// unverified caller could suppress a workspace's contacts or falsify delivery
+// status.
 
 interface ResendEvent {
   type: string;
@@ -62,9 +62,42 @@ const STATUS_PRIORITY: Record<string, number> = {
 };
 
 export async function POST(req: NextRequest) {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+
+  // Fail closed, the same way the cron endpoint does. This route writes to the
+  // suppression list, so an unverified caller who knows or guesses a resend_id
+  // could suppress a workspace's contacts or mark real sends as bounced.
+  // Delivery tracking silently not working is the lesser problem.
+  if (!secret) {
+    return NextResponse.json(
+      { error: "RESEND_WEBHOOK_SECRET is not configured", code: "webhooks_disabled" },
+      { status: 503 }
+    );
+  }
+
+  // The signature covers the exact bytes that were sent, so the body has to be
+  // read as text and parsed afterwards. Calling req.json() first would leave
+  // nothing to verify against.
+  const raw = await req.text();
+
+  try {
+    new Webhook(secret).verify(raw, {
+      "svix-id":        req.headers.get("svix-id") ?? "",
+      "svix-timestamp": req.headers.get("svix-timestamp") ?? "",
+      "svix-signature": req.headers.get("svix-signature") ?? "",
+    });
+  } catch {
+    // Also catches a replayed delivery: svix rejects timestamps outside its
+    // tolerance window.
+    return NextResponse.json(
+      { error: "Invalid signature", code: "bad_signature" },
+      { status: 401 }
+    );
+  }
+
   let event: ResendEvent;
   try {
-    event = await req.json();
+    event = JSON.parse(raw) as ResendEvent;
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }

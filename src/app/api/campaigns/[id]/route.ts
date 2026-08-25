@@ -15,7 +15,7 @@ const PREFLIGHT_SAMPLE = 200;
 // half, so these are locked and only pacing stays adjustable.
 const CONTENT_FIELDS = [
   "name", "subject_template", "body_template", "from_name", "from_email",
-  "allow_guessed_emails", "include_unsubscribe",
+  "allow_guessed_emails", "include_unsubscribe", "sending_identity_id",
 ] as const;
 
 const PACING_FIELDS = [
@@ -145,6 +145,29 @@ export async function PATCH(
       );
     }
     updates[field] = body[field];
+  }
+
+  // Choosing a mailbox sets the campaign's visible from-address to match it.
+  // They would otherwise disagree on screen, and the preflight check reads
+  // from_email rather than resolving the transport.
+  if (updates.sending_identity_id) {
+    // RLS scopes this table to the workspace, so a row coming back is also the
+    // ownership check.
+    const { data: identity } = await supabase
+      .from("sending_identities")
+      .select("from_email, from_name")
+      .eq("id", updates.sending_identity_id as string)
+      .maybeSingle();
+
+    if (!identity) {
+      return NextResponse.json<ApiError>(
+        { error: "That sending identity does not exist", code: "not_found" },
+        { status: 404 }
+      );
+    }
+
+    updates.from_email = identity.from_email;
+    if (identity.from_name) updates.from_name = identity.from_name;
   }
 
   // ── Status transition ───────────────────────────────────────────────────────
