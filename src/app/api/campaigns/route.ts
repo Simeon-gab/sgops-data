@@ -24,6 +24,7 @@ interface CreateBody {
   timezone?: string;
   allow_guessed_emails?: boolean;
   include_unsubscribe?: boolean;
+  sending_identity_id?: string;
   // Recipient source. Explicit ids win when both are given.
   lead_ids?: string[];
   filters?: Record<string, string>;
@@ -104,6 +105,16 @@ export async function POST(req: NextRequest) {
 
   const profile = resolveSenderProfile(workspace);
 
+  // Campaigns send from the workspace default mailbox unless told otherwise.
+  // from_email is seeded alongside it so the campaign page and the preflight
+  // check can show and validate an address without resolving the transport.
+  const { data: defaultIdentity } = await supabase
+    .from("sending_identities")
+    .select("id, from_email, from_name")
+    .eq("workspace_id", workspace.id)
+    .eq("is_default", true)
+    .maybeSingle();
+
   const { data: created, error: createError } = await supabase
     .from("campaigns")
     .insert({
@@ -112,8 +123,14 @@ export async function POST(req: NextRequest) {
       status:            "draft",
       subject_template:  body.subject_template ?? null,
       body_template:     body.body_template ?? null,
-      from_name:         body.from_name ?? (profile.sender_name || workspace.agency_name || null),
-      from_email:        body.from_email ?? workspace.agency_email ?? null,
+      sending_identity_id: body.sending_identity_id ?? defaultIdentity?.id ?? null,
+      from_name:         body.from_name
+        ?? defaultIdentity?.from_name
+        ?? (profile.sender_name || workspace.agency_name || null),
+      from_email:        body.from_email
+        ?? defaultIdentity?.from_email
+        ?? workspace.agency_email
+        ?? null,
       ...numeric("daily_limit", body.daily_limit),
       ...numeric("throttle_seconds", body.throttle_seconds),
       ...(body.send_window_start !== undefined ? { send_window_start: body.send_window_start } : {}),

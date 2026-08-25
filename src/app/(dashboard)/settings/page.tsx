@@ -5,6 +5,7 @@ import { Settings, Building2, Image } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
+import { SendingIdentities } from "@/components/settings/sending-identities";
 import type { Workspace } from "@/lib/utils/types";
 
 export default function SettingsPage() {
@@ -140,6 +141,8 @@ export default function SettingsPage() {
           </form>
         )}
       </div>
+
+      <SendingIdentities />
 
       {/* Placeholder sections */}
       {[

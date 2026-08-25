@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
-import { sendEmail, textToHtml } from "@/lib/api/resend";
+import { textToHtml } from "@/lib/api/resend";
+import { resolveTransport } from "@/lib/sending/resolve";
 import type { Lead, OutreachSend, ApiError } from "@/lib/utils/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -72,10 +73,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const fromName  = workspace.agency_name  ?? "SgOps";
-  const fromEmail = workspace.agency_email
-    ?? process.env.RESEND_FROM_EMAIL
-    ?? "onboarding@resend.dev";
+  // The workspace default identity when there is one, otherwise the platform,
+  // sending from the same address this route always used.
+  let transport;
+  try {
+    transport = await resolveTransport({
+      workspace,
+      fallback: {
+        email: workspace.agency_email
+          ?? process.env.RESEND_FROM_EMAIL
+          ?? "onboarding@resend.dev",
+        name: workspace.agency_name ?? "SgOps",
+      },
+    });
+  } catch (err) {
+    return NextResponse.json<ApiError>(
+      {
+        error: err instanceof Error ? err.message : "No usable sending identity",
+        code: "no_sending_identity",
+      },
+      { status: 400 }
+    );
+  }
 
   // ── 1. Insert all records as "queued" ──────────────────────────────────────
 
@@ -119,12 +138,10 @@ export async function POST(req: NextRequest) {
     await Promise.all(
       chunk.map(async (record) => {
         try {
-          const { resend_id } = await sendEmail({
-            to:        record.to_email,
-            subject:   record.subject,
-            html:      textToHtml(record.body),
-            fromName,
-            fromEmail,
+          const { providerId } = await transport.send({
+            to:      record.to_email,
+            subject: record.subject,
+            html:    textToHtml(record.body),
           });
 
           const now = new Date().toISOString();
@@ -132,7 +149,7 @@ export async function POST(req: NextRequest) {
           // Update send record to "sent"
           const { data: updated } = await supabase
             .from("outreach_sends")
-            .update({ status: "sent", resend_id, sent_at: now })
+            .update({ status: "sent", resend_id: providerId, sent_at: now })
             .eq("id", record.id)
             .select()
             .single();

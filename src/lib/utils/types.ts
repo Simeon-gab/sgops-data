@@ -390,6 +390,9 @@ export interface Campaign {
   // Off by default; the user opts in per campaign.
   allow_guessed_emails: boolean;
   include_unsubscribe: boolean;
+  // Which mailbox this campaign sends from. null keeps the pre-identity
+  // behaviour: from_email above, delivered by the platform.
+  sending_identity_id: string | null;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -421,6 +424,37 @@ export interface CampaignRecipient {
   sent_at: string | null;
   created_at: string;
 }
+
+// ── Sending identities ───────────────────────────────────────────────
+
+export type TransportKind = "resend" | "smtp" | "gmail" | "outlook";
+
+export type SendingIdentityStatus = "unverified" | "verified" | "failed";
+
+export interface SendingIdentity {
+  id: string;
+  workspace_id: string;
+  kind: TransportKind;
+  label: string | null;
+  from_email: string;
+  from_name: string | null;
+  reply_to: string | null;
+  is_default: boolean;
+  status: SendingIdentityStatus;
+  verified_at: string | null;
+  last_error: string | null;
+  // Ciphertext. Unreadable by any browser session and never returned by the
+  // API, so this is null on anything the client holds.
+  secrets: string | null;
+  daily_limit: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// What the API returns: everything except the credentials.
+export type SendingIdentityPublic = Omit<SendingIdentity, "secrets"> & {
+  has_credentials: boolean;
+};
 
 export type SuppressionReason =
   | "unsubscribed"

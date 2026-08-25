@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncRecipientCounts, type RecipientCounts } from "./recipients";
 import { loadSuppressions, screen, type SkipReason } from "./eligibility";
 import { computeAllowance, startOfLocalDay, type PauseReason } from "./schedule";
-import { sendEmail, textToHtml } from "@/lib/api/resend";
+import { textToHtml } from "@/lib/api/resend";
+import { resolveTransport } from "@/lib/sending/resolve";
+import type { Transport } from "@/lib/sending/types";
 import type { Campaign, CampaignRecipient, Lead, Workspace } from "@/lib/utils/types";
 
 // The drain itself, independent of who asked for it.
@@ -111,6 +113,25 @@ export async function driveCampaign(
 
   // ── Drain ───────────────────────────────────────────────────────────────────
 
+  // Resolved once per run rather than per message: the mailbox cannot change
+  // mid-run, and a misconfigured identity should stop the run before anything
+  // is claimed rather than failing one recipient at a time.
+  let transport: Transport;
+  try {
+    transport = await resolveTransport({
+      workspace,
+      identityId: campaign.sending_identity_id,
+      // The pre-identity behaviour, preserved exactly for workspaces that
+      // have not created an identity.
+      fallback: {
+        email: campaign.from_email,
+        name:  campaign.from_name ?? workspace.agency_name ?? "SgOps",
+      },
+    });
+  } catch (err) {
+    return idle({ error: err instanceof Error ? err.message : "No usable sending identity" });
+  }
+
   const suppressed = await loadSuppressions(supabase, campaign.workspace_id);
   const screenOptions = { allowGuessed: campaign.allow_guessed_emails, suppressed };
 
@@ -170,12 +191,22 @@ export async function driveCampaign(
     }
 
     try {
-      const { resend_id } = await sendEmail({
-        to:        recipient.to_email,
-        subject:   screened.message.subject,
-        html:      buildHtml(screened.message.body, recipient.id, unsubscribeBase),
-        fromName:  campaign.from_name ?? workspace.agency_name ?? "SgOps",
-        fromEmail: campaign.from_email,
+      const unsubscribeUrl = unsubscribeBase
+        ? `${unsubscribeBase}?r=${encodeURIComponent(recipient.id)}`
+        : null;
+
+      const { providerId } = await transport.send({
+        to:      recipient.to_email,
+        subject: screened.message.subject,
+        html:    buildHtml(screened.message.body, unsubscribeUrl),
+        // Lets a recipient opt out from the mail client's own header, which
+        // inbox providers weigh in the sender's favour.
+        headers: unsubscribeUrl
+          ? {
+              "List-Unsubscribe": `<${unsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            }
+          : undefined,
       });
 
       lastSendAt = Date.now();
@@ -193,7 +224,9 @@ export async function driveCampaign(
           subject:      screened.message.subject,
           body:         screened.message.body,
           status:       "sent",
-          resend_id,
+          // Column kept its name from when Resend was the only possibility.
+          // It holds whichever transport delivered the message.
+          resend_id:    providerId,
           sent_at:      sentAt,
         })
         .select("id")
@@ -411,11 +444,9 @@ async function findLastSentAt(
 
 // ── Message assembly ──────────────────────────────────────────────────────────
 
-function buildHtml(body: string, recipientId: string, unsubscribeBase: string | null): string {
+function buildHtml(body: string, link: string | null): string {
   const html = textToHtml(body);
-  if (!unsubscribeBase) return html;
-
-  const link = `${unsubscribeBase}?r=${encodeURIComponent(recipientId)}`;
+  if (!link) return html;
 
   return (
     html +
