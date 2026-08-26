@@ -61,6 +61,26 @@ const STATUS_PRIORITY: Record<string, number> = {
   failed:    5,
 };
 
+// ── GET /api/webhooks ─────────────────────────────────────────────────────────
+//
+// Says the endpoint is alive and does nothing else. Delivery events arrive by
+// POST, so a webhook receiver has no reason to answer a GET, and a bare 405 is
+// the technically correct reply. It is also indistinguishable from a broken
+// deployment when someone opens the URL to check their work, and some
+// providers probe an endpoint before accepting it.
+//
+// Reads nothing, writes nothing, and reveals nothing beyond the fact that a
+// route is mounted here, which the 405 already gave away.
+
+export async function GET() {
+  return NextResponse.json({
+    endpoint: "resend-webhooks",
+    status: "ready",
+    expects: "POST, signed with the Svix scheme",
+    configured: Boolean(process.env.RESEND_WEBHOOK_SECRET),
+  });
+}
+
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
 
