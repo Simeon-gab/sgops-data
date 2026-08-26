@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 import { createServiceClient } from "@/lib/supabase/server";
+import { syncRecipientCounts } from "@/lib/campaigns/recipients";
 
 // ── POST /api/webhooks ────────────────────────────────────────────────────────
 // Handles Resend delivery webhooks.
 // Configure in Resend dashboard: https://resend.com/webhooks
 // Events: email.sent, email.delivered, email.opened, email.clicked,
-//         email.bounced, email.delivery_delayed, email.complained
+//         email.bounced, email.complained, email.failed, email.delivery_delayed
 //
 // Every request is signature-verified with the Svix scheme Resend uses. This
 // endpoint is public by necessity and it writes to the suppression list, so an
@@ -31,8 +32,17 @@ const EVENT_STATUS_MAP: Record<string, string> = {
   "email.clicked":          "clicked",
   "email.bounced":          "bounced",
   "email.complained":       "bounced",
+  "email.failed":           "failed",
   "email.delivery_delayed": "sent",   // delayed — keep as sent, not failed
 };
+
+// Events meaning the message never reached anyone, so the campaign recipient
+// that was optimistically marked sent has to be corrected.
+//
+// A complaint is not among them: that message did arrive, and the person who
+// received it pressed the spam button. It suppresses the address without
+// rewriting the fact of delivery.
+const DELIVERY_FAILED_EVENTS = new Set(["email.bounced", "email.failed"]);
 
 // Timestamp fields to update alongside status
 const EVENT_TIMESTAMP_MAP: Record<string, string | null> = {
@@ -45,6 +55,12 @@ const EVENT_TIMESTAMP_MAP: Record<string, string | null> = {
 // Events that mean the address must never be mailed again. Continuing to send
 // after a hard bounce or a complaint is what gets a sending domain blacklisted,
 // and the damage is not confined to the workspace that caused it.
+// Deliberately not including email.failed. A bounce and a complaint are the
+// address telling us something about itself. A failure often is not: a rejected
+// sender domain, a provider outage or a malformed message all surface here, and
+// none of them are the recipient's fault. Suppressing on it would quietly
+// blacklist good leads for a problem at our end, and a suppression is meant to
+// be permanent.
 const SUPPRESSION_REASONS: Record<string, string> = {
   "email.bounced":    "bounced",
   "email.complained": "complained",
@@ -155,6 +171,14 @@ export async function POST(req: NextRequest) {
     await suppress(supabase, existing.workspace_id, existing.to_email, suppressionReason, event.type);
   }
 
+  // The worker marks a campaign recipient sent the moment the provider accepts
+  // the message, which is the only thing it can know at that point. A bounce or
+  // a failure arrives later and says otherwise, so the campaign is corrected
+  // here rather than showing a delivery that never happened.
+  if (DELIVERY_FAILED_EVENTS.has(event.type)) {
+    await markRecipientFailed(supabase, existing.id, event.type);
+  }
+
   // Only upgrade status, never downgrade
   const currentPriority = STATUS_PRIORITY[existing.status] ?? 0;
   const newPriority      = STATUS_PRIORITY[newStatus] ?? 0;
@@ -173,6 +197,33 @@ export async function POST(req: NextRequest) {
     .eq("id", existing.id);
 
   return NextResponse.json({ received: true, status: newStatus });
+}
+
+// ── Campaign correction ───────────────────────────────────────────────────────
+
+async function markRecipientFailed(
+  // biome-ignore lint: Supabase client generic is not exported in a usable form
+  supabase: any,
+  sendId: string,
+  eventType: string
+): Promise<void> {
+  // Guarded on "sent" so this only ever corrects a row this send created, and
+  // cannot overwrite one that was skipped, cancelled or is queued for a retry.
+  const { data } = await supabase
+    .from("campaign_recipients")
+    .update({ status: "failed", last_error: eventType })
+    .eq("send_id", sendId)
+    .eq("status", "sent")
+    .select("campaign_id")
+    .maybeSingle();
+
+  const campaignId = (data as { campaign_id?: string } | null)?.campaign_id;
+  if (!campaignId) return;
+
+  // The campaign's own counters are derived from its recipient rows, and a
+  // finished campaign is never driven again, so without this the totals would
+  // keep claiming a delivery that has just been disproved.
+  await syncRecipientCounts(supabase, campaignId);
 }
 
 // ── Suppression ───────────────────────────────────────────────────────────────
