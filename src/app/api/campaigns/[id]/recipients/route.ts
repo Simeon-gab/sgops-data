@@ -20,9 +20,10 @@ interface AddBody {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, campaign } = result.context;
@@ -71,9 +72,10 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, workspace, campaign } = result.context;
@@ -129,9 +131,10 @@ export async function POST(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, campaign } = result.context;

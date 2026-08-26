@@ -16,9 +16,10 @@ const RUN_BUDGET_MS = 20_000;
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, user, workspace, campaign } = result.context;

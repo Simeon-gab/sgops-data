@@ -37,7 +37,7 @@ function str(value: unknown, field: string): string | null {
 // onboarding without hardcoding the preset list.
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -70,7 +70,7 @@ export async function GET() {
 // generation depends on are present.
 
 export async function PUT(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

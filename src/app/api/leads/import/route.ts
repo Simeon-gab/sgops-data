@@ -44,7 +44,7 @@ function normalizeWebsite(url: string | undefined): string | null {
 // leads by email, then inserts the rest as leads with source "csv_import".
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

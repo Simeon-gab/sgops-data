@@ -25,7 +25,7 @@ function fail(error: string, code: string, status: number): { ok: false; respons
 }
 
 export async function loadCampaign(campaignId: string): Promise<ContextResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return fail("Unauthorized", "unauthorized", 401);

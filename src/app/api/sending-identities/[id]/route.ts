@@ -12,7 +12,7 @@ const EDITABLE = ["label", "from_name", "reply_to", "daily_limit"] as const;
 async function context(): Promise<
   { ok: true; workspace: Workspace } | { ok: false; response: NextResponse }
 > {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -44,8 +44,9 @@ async function context(): Promise<
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const ctx = await context();
   if (!ctx.ok) return ctx.response;
 
@@ -66,7 +67,7 @@ export async function PATCH(
   const { data: existing } = await admin
     .from("sending_identities")
     .select("id")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", ctx.workspace.id)
     .maybeSingle();
 
@@ -135,7 +136,7 @@ export async function PATCH(
   const { data, error } = await admin
     .from("sending_identities")
     .update(updates)
-    .eq("id", params.id)
+    .eq("id", id)
     .select(PUBLIC_COLUMNS)
     .single();
 
@@ -153,8 +154,9 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const ctx = await context();
   if (!ctx.ok) return ctx.response;
 
@@ -165,7 +167,7 @@ export async function DELETE(
   const { count: active } = await admin
     .from("campaigns")
     .select("id", { count: "exact", head: true })
-    .eq("sending_identity_id", params.id)
+    .eq("sending_identity_id", id)
     .in("status", ["sending", "scheduled", "paused"]);
 
   if ((active ?? 0) > 0) {
@@ -181,7 +183,7 @@ export async function DELETE(
   const { data, error } = await admin
     .from("sending_identities")
     .delete()
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", ctx.workspace.id)
     .select("id, is_default")
     .maybeSingle();

@@ -58,7 +58,7 @@ function toCleanRecord(lead: Lead): CleanBusinessRecord {
 // Use /api/enrich for full enrichment + scoring.
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

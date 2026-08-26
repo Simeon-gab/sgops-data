@@ -9,9 +9,10 @@ import type { Lead, PipelineStage, ApiError } from "@/lib/utils/types";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -43,7 +44,7 @@ export async function PATCH(
   const { data: current, error: fetchError } = await supabase
     .from("leads")
     .select("stage, notes")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspace.id)
     .single();
 
@@ -73,7 +74,7 @@ export async function PATCH(
     }
     activities.push({
       workspace_id: workspace.id,
-      lead_id: params.id,
+      lead_id: id,
       type: "stage_change",
       from_stage: current.stage,
       to_stage: body.stage,
@@ -90,7 +91,7 @@ export async function PATCH(
     updates.notes = body.notes;
     activities.push({
       workspace_id: workspace.id,
-      lead_id: params.id,
+      lead_id: id,
       type: "note",
       content: body.notes.trim(),
       created_by: user.id,
@@ -105,7 +106,7 @@ export async function PATCH(
     const { data: unchanged } = await supabase
       .from("leads")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
     return NextResponse.json({ lead: unchanged as Lead });
   }
@@ -113,7 +114,7 @@ export async function PATCH(
   const { data: updated, error: updateError } = await supabase
     .from("leads")
     .update(updates)
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspace.id)
     .select()
     .single();

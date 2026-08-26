@@ -10,7 +10,7 @@ import type { OutreachTemplate, ApiError } from "@/lib/utils/types";
 const FOLLOW_UP_TYPES = ["follow_up_3", "follow_up_7", "follow_up_14"] as const;
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

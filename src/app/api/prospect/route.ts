@@ -6,7 +6,7 @@ import { NICHES } from "@/lib/utils/constants";
 import type { ProspectRequest, Lead, CleanBusinessRecord, ApiError } from "@/lib/utils/types";
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

@@ -26,7 +26,7 @@ interface CreateBody {
 // ── GET /api/sending-identities ───────────────────────────────────────────────
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -83,7 +83,7 @@ export async function GET() {
 // ── POST /api/sending-identities ──────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

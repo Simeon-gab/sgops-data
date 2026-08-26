@@ -5,7 +5,7 @@ import { PIPELINE_STAGES } from "@/lib/utils/constants";
 import type { ApiError } from "@/lib/utils/types";
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

@@ -7,7 +7,7 @@ import type { PipelineActivity, ApiError } from "@/lib/utils/types";
 // Returns pipeline_activities for a lead, newest first.
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

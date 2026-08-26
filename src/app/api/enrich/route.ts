@@ -57,7 +57,7 @@ function toCleanRecord(lead: Lead): CleanBusinessRecord {
 // Fetches website + SerpAPI for each lead, scores, writes back to DB.
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

@@ -12,8 +12,12 @@ export function createServiceClient() {
   );
 }
 
-export function createClient() {
-  const cookieStore = cookies();
+// Async since Next 15: cookies() returns a promise there, so every caller has
+// to await this. Making the await explicit rather than hiding it behind an
+// async cookie adapter keeps a mistake a compile error, instead of a session
+// that silently fails to load.
+export async function createClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

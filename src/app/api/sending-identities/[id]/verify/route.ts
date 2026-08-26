@@ -19,9 +19,10 @@ export const maxDuration = 30;
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -44,7 +45,7 @@ export async function POST(
   const { data: identity } = await admin
     .from("sending_identities")
     .select("id, from_email")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspace.id)
     .maybeSingle();
 
@@ -59,7 +60,7 @@ export async function POST(
     await admin
       .from("sending_identities")
       .update({ status: "failed", verified_at: null, last_error: message })
-      .eq("id", params.id);
+      .eq("id", id);
 
     return NextResponse.json(
       { verified: false, error: message },
@@ -71,7 +72,7 @@ export async function POST(
   try {
     transport = await resolveTransport({
       workspace: workspace as Workspace,
-      identityId: params.id,
+      identityId: id,
       fallback: { email: null, name: null },
     });
   } catch (err) {
@@ -105,7 +106,7 @@ export async function POST(
       verified_at: new Date().toISOString(),
       last_error: null,
     })
-    .eq("id", params.id);
+    .eq("id", id);
 
   return NextResponse.json({ verified: true, checked: true });
 }

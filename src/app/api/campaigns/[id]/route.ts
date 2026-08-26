@@ -43,9 +43,10 @@ const RESULTING_STATUS: Record<Action, CampaignStatus> = {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, campaign } = result.context;
@@ -98,9 +99,10 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, campaign } = result.context;
@@ -244,9 +246,10 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await loadCampaign(params.id);
+  const { id } = await params;
+  const result = await loadCampaign(id);
   if (!result.ok) return result.response;
 
   const { supabase, campaign } = result.context;

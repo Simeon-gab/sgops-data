@@ -7,7 +7,7 @@ import type { OutreachSend, ApiError } from "@/lib/utils/types";
 // Returns all outreach_sends for the workspace, joined with lead name.
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

@@ -33,7 +33,7 @@ interface CreateBody {
 // ── GET /api/campaigns ────────────────────────────────────────────────────────
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -67,7 +67,7 @@ export async function GET() {
 // campaign does not send until it is explicitly started.
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {

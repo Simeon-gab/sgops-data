@@ -12,7 +12,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

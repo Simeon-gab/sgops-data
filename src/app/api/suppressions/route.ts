@@ -15,7 +15,7 @@ const REASONS: SuppressionReason[] = [
 // workspace because a hard bounce damages reputation nobody owns alone.
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
 // Body: { emails: string[], reason?: SuppressionReason, source?: string }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
 // complaints and are not the workspace's to lift.
 
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
