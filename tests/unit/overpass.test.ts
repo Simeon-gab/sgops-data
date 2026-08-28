@@ -276,6 +276,22 @@ test("the box narrows with longitude as it approaches a pole", async () => {
   assert.ok(Number.isFinite(east) && east < 180);
 });
 
+test("a niche that needs two tags to identify it asks for both together", async () => {
+  // Every food wholesaler is a shop=wholesale, and so is every sanitary-ware
+  // and electrical wholesaler. The trade is in the second tag, and asking for
+  // it separately would return the whole trading estate.
+  stubFetch(() => elements(node(1, { shop: "wholesale", wholesale: "food" })));
+
+  const records = await fetchFromOverpass(
+    "food_wholesale", "Food & Beverage Wholesalers", "Lagos", "Lagos", "Nigeria", LAGOS, 5
+  );
+
+  const query = queryOf(calls[0]);
+  assert.match(query, /nwr\["shop"="wholesale"\]\["wholesale"="food"\]\["name"\]/);
+  assert.ok(!/nwr\["shop"="wholesale"\]\["name"\]/.test(query), "never the bare shop tag on its own");
+  assert.equal(records[0].category, "food wholesale", "the trade beats the fact of being a wholesaler");
+});
+
 test("a niche with no OSM equivalent asks for nothing rather than guessing", async () => {
   stubFetch(() => elements(node(1)));
 
@@ -408,8 +424,8 @@ test("a network failure costs the top-up, not the whole search", async () => {
     "restaurant", "Restaurants", "Lagos", "Lagos", "Nigeria", LAGOS, 5
   );
 
-  assert.deepEqual(records, [], "both instances failed and neither threw");
-  assert.equal(calls.length, 2);
+  assert.deepEqual(records, [], "every instance failed and none of them threw");
+  assert.equal(calls.length, 3, "each mirror gets a turn");
 });
 
 test("an empty area is an empty result, not an error", async () => {

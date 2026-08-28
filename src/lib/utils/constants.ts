@@ -28,6 +28,12 @@ export const NICHES = [
   { id: "furniture",        label: "Furniture Stores",             icon: "🛋️" },
   { id: "pharmacy",         label: "Pharmacies",                   icon: "💊" },
   { id: "grocery",          label: "Supermarkets & Grocery",       icon: "🛒" },
+  // B2B niches. These sell to other businesses rather than to walk-in
+  // customers, so they tend to have a phone number and no storefront, which is
+  // the opposite of the consumer niches above.
+  { id: "distributor",      label: "Distributors & Wholesale Suppliers", icon: "📦" },
+  { id: "food_wholesale",   label: "Food & Beverage Wholesalers",  icon: "🥫" },
+  { id: "diagnostic_centre", label: "Diagnostic Centres & Medical Labs", icon: "🔬" },
 ] as const;
 
 export type NicheId = (typeof NICHES)[number]["id"];

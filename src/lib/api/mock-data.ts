@@ -86,6 +86,84 @@ const NICHE_NAMES: Record<string, string[]> = {
     "Photography", "Photo Studio", "Studios", "Photography Studio",
     "Creative Studios", "Image Studio", "Visual Studio", "Photo Works",
   ],
+  spa_wellness: [
+    "Spa", "Wellness Centre", "Day Spa", "Spa & Wellness", "Serenity Spa",
+    "Massage Therapy", "Wellness Studio", "Retreat Spa", "Tranquil Spa",
+    "Body & Soul", "Healing Hands", "The Spa", "Rejuvenate Wellness",
+  ],
+  bakery_cafe: [
+    "Bakery", "Cafe", "Coffee House", "Bakehouse", "Patisserie", "Bread & Co",
+    "Coffee Bar", "The Bakery", "Sweet Crumb", "Daily Grind", "Pastry Shop",
+    "Corner Cafe", "Artisan Bakery", "Roasters",
+  ],
+  pet_services: [
+    "Veterinary Clinic", "Pet Grooming", "Animal Hospital", "Vet Centre",
+    "Pet Spa", "Paws & Claws", "Pet Care", "Animal Clinic", "Grooming Studio",
+    "Happy Tails", "Pet Wellness", "Companion Vet",
+  ],
+  fashion_clothing: [
+    "Fashion", "Boutique", "Clothing Store", "Fashion House", "Apparel",
+    "Style House", "Threads", "The Wardrobe", "Couture", "Fashion Lounge",
+    "Trendsetters", "Garment Studio", "Chic Boutique",
+  ],
+  jewelry: [
+    "Jewellers", "Jewelry Store", "Gold & Diamonds", "Fine Jewellery",
+    "Goldsmiths", "Gems & Jewels", "The Jewellery Box", "Precious Stones",
+    "Diamond House", "Silver & Gold", "Heritage Jewellers",
+  ],
+  barbershop: [
+    "Barbershop", "Barbers", "Cuts", "The Barber", "Gentlemen's Barbers",
+    "Fade Factory", "Classic Cuts", "Sharp Cuts", "Clippers", "Groom Room",
+    "Kings Barbers", "Fresh Cuts",
+  ],
+  car_wash: [
+    "Car Wash", "Auto Detailing", "Wash & Go", "Auto Spa", "Sparkle Car Wash",
+    "Detail Centre", "Shine Auto Wash", "Express Car Wash", "Auto Shine",
+    "Premium Detailing", "Clean Machine",
+  ],
+  printing_signage: [
+    "Printers", "Print Shop", "Signage", "Print & Design", "Graphics",
+    "Signs & Prints", "Digital Printing", "Print Works", "Sign Makers",
+    "Impact Signs", "Copy Centre", "Press & Print",
+  ],
+  florist: [
+    "Florist", "Flowers", "Flower Shop", "Blooms", "Floral Studio",
+    "Petals & Stems", "Bloom & Bouquet", "Garden Florist", "Flower Boutique",
+    "Fresh Blooms", "The Flower House",
+  ],
+  furniture: [
+    "Furniture", "Furniture Store", "Home Furnishings", "Interiors",
+    "Furniture House", "Living Spaces", "Home & Living", "Decor Studio",
+    "Comfort Furniture", "The Furniture Gallery", "Interior Works",
+  ],
+  pharmacy: [
+    "Pharmacy", "Chemist", "Drug Store", "Pharmacy & Stores", "Health Pharmacy",
+    "Medicine Shop", "Care Pharmacy", "Community Pharmacy", "MediPlus Pharmacy",
+    "Wellness Chemist", "City Pharmacy",
+  ],
+  grocery: [
+    "Supermarket", "Grocery", "Stores", "Mart", "Food Market", "Provisions",
+    "Fresh Market", "Family Supermarket", "Daily Mart", "Shopping Centre",
+    "Corner Store", "Value Mart",
+  ],
+  distributor: [
+    "Distributors", "Trading Company", "Supply Co", "Wholesale Depot",
+    "Enterprises", "Trading Ltd", "Merchants", "Distribution Ltd",
+    "Supplies", "Trading House", "Commodities", "Ventures", "Depot",
+    "Industrial Supplies", "Trade Centre",
+  ],
+  food_wholesale: [
+    "Foods", "Food Supplies", "Provisions", "Wholesale Foods", "Food Depot",
+    "Fresh Produce Co", "Beverages", "Drinks Distribution", "Foodstuffs",
+    "Agro Foods", "Cold Store", "Food Traders", "Grocery Wholesale",
+    "Farm Supplies", "Catering Supplies",
+  ],
+  diagnostic_centre: [
+    "Diagnostics", "Medical Laboratory", "Diagnostic Centre", "Labs",
+    "Pathology Lab", "Clinical Labs", "Medical Diagnostics", "Scan Centre",
+    "Imaging Centre", "Health Diagnostics", "Lab Services", "Radiology Centre",
+    "Reference Laboratory", "Health Labs", "Medicare Diagnostics",
+  ],
 };
 
 const OWNER_FIRST_NAMES = [
@@ -119,6 +197,21 @@ const NICHE_CATEGORIES: Record<string, string> = {
   medical: "Medical Clinic",
   nightclub: "Bar & Nightclub",
   photography: "Photography Studio",
+  spa_wellness: "Spa & Wellness Centre",
+  bakery_cafe: "Bakery & Cafe",
+  pet_services: "Pet Grooming / Veterinary",
+  fashion_clothing: "Fashion & Clothing Store",
+  jewelry: "Jewelry Store",
+  barbershop: "Barbershop",
+  car_wash: "Car Wash & Detailing",
+  printing_signage: "Printing & Signage",
+  florist: "Florist",
+  furniture: "Furniture Store",
+  pharmacy: "Pharmacy",
+  grocery: "Supermarket & Grocery",
+  distributor: "Distributor / Wholesale Supplier",
+  food_wholesale: "Food & Beverage Wholesaler",
+  diagnostic_centre: "Diagnostic Centre / Medical Lab",
 };
 
 function buildBusinessName(nicheId: string, city: string, idx: number): string {

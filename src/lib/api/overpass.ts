@@ -17,11 +17,17 @@ import type { RawBusinessRecord } from "@/lib/utils/types";
 // It is the last source tried, and a failure here must leave whatever the
 // earlier sources found intact.
 
-// Public instances. The main one rate-limits by IP and sheds load under
-// pressure, so a second is tried before giving up.
+// Public instances, tried in order. These are volunteer-run and they cut you
+// off readily: a couple of dozen queries inside a few minutes was enough, while
+// building this, to have the main instance stop accepting connections and the
+// mirrors answer 500 to a query they had served moments before. A serverless
+// deployment shares its outbound IP with other tenants, so expect the same in
+// production. Hence three mirrors, and hence Overpass being the last source
+// tried rather than anything the product depends on.
 const ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
 ];
 
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
@@ -47,36 +53,60 @@ const GEOCODE_TIMEOUT_MS = 10_000;
 // Each niche therefore maps to every tag combination that plausibly means it,
 // and the union of those is what gets queried.
 
-type TagPair = readonly [key: string, value: string];
+// One filter is a set of tags an element must carry all of. Most niches need a
+// single tag to identify them, but a few only separate from their neighbours on
+// a second one: every food wholesaler is a `shop=wholesale`, and so is every
+// sanitary-ware and electrical wholesaler, so the trade is in `wholesale=*`.
+type TagFilter = Readonly<Record<string, string>>;
 
-const NICHE_TAGS: Record<string, readonly TagPair[]> = {
-  restaurant:       [["amenity", "restaurant"], ["amenity", "fast_food"]],
-  hotel:            [["tourism", "hotel"], ["tourism", "guest_house"], ["tourism", "motel"], ["tourism", "hostel"]],
-  salon:            [["shop", "hairdresser"], ["shop", "beauty"]],
-  gym:              [["leisure", "fitness_centre"], ["leisure", "sports_centre"]],
-  dental:           [["amenity", "dentist"], ["healthcare", "dentist"]],
-  real_estate:      [["office", "estate_agent"]],
-  law_firm:         [["office", "lawyer"]],
-  auto_dealer:      [["shop", "car"]],
-  wedding_venue:    [["amenity", "events_venue"], ["shop", "wedding"]],
-  event_planner:    [["office", "event_management"], ["shop", "party"]],
-  contractor:       [["craft", "builder"], ["craft", "carpenter"], ["craft", "electrician"], ["craft", "plumber"], ["office", "construction_company"]],
-  retail:           [["shop", "department_store"], ["shop", "general"], ["shop", "variety_store"]],
-  medical:          [["amenity", "clinic"], ["amenity", "doctors"], ["healthcare", "centre"]],
-  nightclub:        [["amenity", "nightclub"], ["amenity", "bar"], ["amenity", "pub"]],
-  photography:      [["shop", "photo"], ["craft", "photographer"]],
-  spa_wellness:     [["leisure", "spa"], ["shop", "massage"], ["leisure", "sauna"]],
-  bakery_cafe:      [["shop", "bakery"], ["amenity", "cafe"]],
-  pet_services:     [["amenity", "veterinary"], ["shop", "pet_grooming"], ["shop", "pet"]],
-  fashion_clothing: [["shop", "clothes"], ["shop", "boutique"], ["shop", "shoes"]],
-  jewelry:          [["shop", "jewelry"]],
-  barbershop:       [["shop", "hairdresser"]],
-  car_wash:         [["amenity", "car_wash"]],
-  printing_signage: [["shop", "copyshop"], ["craft", "printer"], ["craft", "signmaker"]],
-  florist:          [["shop", "florist"]],
-  furniture:        [["shop", "furniture"], ["shop", "interior_decoration"]],
-  pharmacy:         [["amenity", "pharmacy"], ["shop", "chemist"]],
-  grocery:          [["shop", "supermarket"], ["shop", "convenience"], ["shop", "greengrocer"]],
+const NICHE_TAGS: Record<string, readonly TagFilter[]> = {
+  restaurant:       [{ amenity: "restaurant" }, { amenity: "fast_food" }],
+  hotel:            [{ tourism: "hotel" }, { tourism: "guest_house" }, { tourism: "motel" }, { tourism: "hostel" }],
+  salon:            [{ shop: "hairdresser" }, { shop: "beauty" }],
+  gym:              [{ leisure: "fitness_centre" }, { leisure: "sports_centre" }],
+  dental:           [{ amenity: "dentist" }, { healthcare: "dentist" }],
+  real_estate:      [{ office: "estate_agent" }],
+  law_firm:         [{ office: "lawyer" }],
+  auto_dealer:      [{ shop: "car" }],
+  wedding_venue:    [{ amenity: "events_venue" }, { shop: "wedding" }],
+  event_planner:    [{ office: "event_management" }, { shop: "party" }],
+  contractor:       [{ craft: "builder" }, { craft: "carpenter" }, { craft: "electrician" }, { craft: "plumber" }, { office: "construction_company" }],
+  retail:           [{ shop: "department_store" }, { shop: "general" }, { shop: "variety_store" }],
+  medical:          [{ amenity: "clinic" }, { amenity: "doctors" }, { healthcare: "centre" }],
+  nightclub:        [{ amenity: "nightclub" }, { amenity: "bar" }, { amenity: "pub" }],
+  photography:      [{ shop: "photo" }, { craft: "photographer" }],
+  spa_wellness:     [{ leisure: "spa" }, { shop: "massage" }, { leisure: "sauna" }],
+  bakery_cafe:      [{ shop: "bakery" }, { amenity: "cafe" }],
+  pet_services:     [{ amenity: "veterinary" }, { shop: "pet_grooming" }, { shop: "pet" }],
+  fashion_clothing: [{ shop: "clothes" }, { shop: "boutique" }, { shop: "shoes" }],
+  jewelry:          [{ shop: "jewelry" }],
+  barbershop:       [{ shop: "hairdresser" }],
+  car_wash:         [{ amenity: "car_wash" }],
+  printing_signage: [{ shop: "copyshop" }, { craft: "printer" }, { craft: "signmaker" }],
+  florist:          [{ shop: "florist" }],
+  furniture:        [{ shop: "furniture" }, { shop: "interior_decoration" }],
+  pharmacy:         [{ amenity: "pharmacy" }, { shop: "chemist" }],
+  grocery:          [{ shop: "supermarket" }, { shop: "convenience" }, { shop: "greengrocer" }],
+
+  // shop=trade is the trade counter or builders' merchant, and it is the
+  // best-mapped of the three: a few hundred in London, dozens in Berlin.
+  distributor:      [{ shop: "trade" }, { shop: "wholesale" }, { office: "logistics" }],
+  // Narrowed by trade, because the bare shop=wholesale above is just as often
+  // sanitary ware or electrical parts. Fewer results, but they are the right
+  // businesses, which is the trade this whole mapping makes.
+  food_wholesale:   [
+    { shop: "wholesale", wholesale: "food" },
+    { shop: "wholesale", wholesale: "beverages" },
+    { shop: "wholesale", wholesale: "alcohol" },
+    { shop: "wholesale", wholesale: "meat" },
+    { shop: "wholesale", wholesale: "gastronomy" },
+    { shop: "wholesale", wholesale: "supermarket" },
+  ],
+  // The one tag of the three B2B niches with real coverage in the markets this
+  // is aimed at: 54 named labs across Lagos, Nairobi and Mumbai. Blood banks
+  // and hospital pathology departments are deliberately not in here, since
+  // neither is a business anyone can pitch.
+  diagnostic_centre: [{ healthcare: "laboratory" }],
 };
 
 // -- Overpass response shapes -------------------------------------------------
@@ -162,14 +192,24 @@ function boundingBox(lat: number, lng: number, radiusM: number) {
     .join(",");
 }
 
-function buildQuery(tags: readonly TagPair[], lat: number, lng: number, limit: number): string {
+function buildQuery(
+  filters: readonly TagFilter[],
+  lat: number,
+  lng: number,
+  limit: number
+): string {
   const bbox = boundingBox(lat, lng, SEARCH_RADIUS_M);
 
   // Only elements that carry a name are of any use as a lead, so the filter is
   // pushed into the query rather than applied after the fact. It cuts the
   // response down substantially: a large share of OSM shop nodes are unnamed.
-  const clauses = tags
-    .map(([k, v]) => `nwr["${k}"="${v}"]["name"](${bbox});`)
+  const clauses = filters
+    .map((filter) => {
+      const tags = Object.entries(filter)
+        .map(([k, v]) => `["${k}"="${v}"]`)
+        .join("");
+      return `nwr${tags}["name"](${bbox});`;
+    })
     .join("\n  ");
 
   return `[out:json][timeout:${QUERY_TIMEOUT_S}];\n(\n  ${clauses}\n);\nout center tags ${limit};`;
@@ -245,6 +285,10 @@ function normalizeWebsite(raw: string): string | null {
 // way SerpAPI's own type is. "fast food" says more about a lead than
 // "Restaurants" does.
 function readCategory(tags: Record<string, string>, fallback: string): string {
+  // What a wholesaler deals in says more than the fact that it is a wholesaler.
+  const trade = tags.wholesale?.trim();
+  if (trade && trade !== "yes") return `${trade.replace(/_/g, " ")} wholesale`;
+
   for (const key of ["amenity", "shop", "office", "craft", "leisure", "tourism", "healthcare"]) {
     const value = tags[key];
     if (value) return value.replace(/_/g, " ");
