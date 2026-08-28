@@ -50,8 +50,16 @@ function detectSignals(
     }
   }
 
-  // Reviews (exclusive group)
-  if (record.review_count < LOW_REVIEW_THRESHOLD) {
+  // Reviews (exclusive group).
+  // A source with no reputation data at all, OpenStreetMap being the one in the
+  // chain, reports neither a rating nor a review count, and the cleaner stores
+  // the missing count as zero. Treating that as "low online visibility" would
+  // fire the signal on every OSM lead in the workspace and rank them by an
+  // absence of data rather than by anything true about the business. No rating
+  // and no reviews together means unknown; a rating with few reviews is a real
+  // finding.
+  const hasReviewData = record.rating !== null || record.review_count > 0;
+  if (hasReviewData && record.review_count < LOW_REVIEW_THRESHOLD) {
     add(
       "low_review_count",
       `Only ${record.review_count} review${record.review_count === 1 ? "" : "s"}, low online visibility`

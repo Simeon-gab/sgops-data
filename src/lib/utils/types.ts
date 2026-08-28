@@ -48,7 +48,7 @@ export interface Lead {
   stage: PipelineStage;
   last_contacted_at: string | null;
   notes: string;
-  source: "google_places" | "serpapi" | "directory" | "manual" | "csv_import";
+  source: "google_places" | "serpapi" | "openstreetmap" | "directory" | "manual" | "csv_import";
   // Arbitrary columns carried over from a CSV import, usable as merge fields
   custom_fields: Record<string, string>;
   extracted_at: string;
@@ -476,7 +476,7 @@ export interface Suppression {
 // ── Engine types ──────────────────────────────────────────────────────────────
 
 export interface RawBusinessRecord {
-  source: "google_places" | "serpapi" | "directory" | "mock";
+  source: "google_places" | "serpapi" | "openstreetmap" | "directory" | "mock";
   name: string;
   address_raw: string;
   phone_raw: string;
@@ -492,7 +492,7 @@ export interface RawBusinessRecord {
 }
 
 export interface CleanBusinessRecord {
-  source: "google_places" | "serpapi" | "directory" | "mock";
+  source: "google_places" | "serpapi" | "openstreetmap" | "directory" | "mock";
   name: string;
   address: {
     street: string;
@@ -537,4 +537,7 @@ export interface ProspectApiResponse {
   total_extracted: number;
   duplicates_skipped: number;
   search_id: string | null;
+  // Present when the primary extraction source failed and the backup covered
+  // for it. Null on a normal search.
+  fallback_notice: string | null;
 }

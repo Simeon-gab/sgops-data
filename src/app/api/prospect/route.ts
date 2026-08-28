@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { records, demo_mode } = prospectResult;
+  const { records, demo_mode, fallback_notice } = prospectResult;
   const totalExtracted = records.length;
 
   // Deduplicate against existing workspace leads
@@ -175,5 +175,6 @@ export async function POST(req: NextRequest) {
     total_extracted: totalExtracted,
     duplicates_skipped: duplicatesSkipped,
     search_id: null,
+    fallback_notice,
   });
 }

@@ -82,9 +82,21 @@ export default function ProspectPage() {
               <div>
                 <p className="text-sm font-medium text-gold">Demo mode</p>
                 <p className="text-xs text-text-3 mt-0.5">
-                  No Google Places API key detected. Showing generated sample data so you can explore the full pipeline.
-                  Add <code className="font-mono text-gold-bright">GOOGLE_PLACES_API_KEY</code> to your .env.local to switch to live data.
+                  No source returned businesses for this search, so this is generated sample data you can use to
+                  explore the full pipeline. OpenStreetMap is searched without any key and may simply have no
+                  coverage here. Add <code className="font-mono text-gold-bright">SERPAPI_KEY</code> or{" "}
+                  <code className="font-mono text-gold-bright">GOOGLE_PLACES_API_KEY</code> to your .env.local for live data anywhere.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {result.fallback_notice && (
+            <div className="flex items-start gap-3 bg-gold-dim border border-gold/20 rounded-xl p-4">
+              <AlertTriangle className="h-4 w-4 text-gold shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-gold">About these results</p>
+                <p className="text-xs text-text-3 mt-0.5">{result.fallback_notice}</p>
               </div>
             </div>
           )}

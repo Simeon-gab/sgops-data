@@ -109,7 +109,9 @@ export async function fetchFromGooglePlaces(
 
     if (response.status === "ZERO_RESULTS") break;
     if (response.status !== "OK") {
-      throw new Error(`Google Places: ${response.status} — ${response.error_message ?? ""}`);
+      throw new Error(
+        `Google Places: ${response.status}${response.error_message ? `. ${response.error_message}` : ""}`
+      );
     }
 
     const category = nicheLabel;
