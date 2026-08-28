@@ -1,33 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { safeRedirect } from "@/lib/utils/safe-redirect";
 
-export default function LoginPage() {
+// The callback route reports a bad link as a code, and only these are shown.
+// Anything else in the query string is ignored rather than printed, so the URL
+// cannot be used to put a chosen sentence above the password field.
+const LINK_ERRORS: Record<string, string> = {
+  link_invalid: "That sign-in link is not valid. Please request a new one.",
+  link_expired: "That link has expired or was already used. Please request a new one.",
+};
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // An expired confirmation or recovery link redirects here saying why. Without
+  // this the visitor just lands on a blank login form with no idea the link
+  // was the problem.
+  const [error, setError] = useState(LINK_ERRORS[params.get("error") ?? ""] ?? "");
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setUnconfirmed(false);
+    setResent(false);
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
+        // Supabase refuses an unconfirmed account with a message that reads as
+        // a wrong password to most people. Offering the resend here is what
+        // makes the account recoverable without support.
+        if (/not confirmed|confirm your email/i.test(error.message)) setUnconfirmed(true);
         return;
       }
-      router.push("/prospect");
+      router.push(safeRedirect(params.get("next")));
       router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setLoading(true);
+    try {
+      await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      // Reported as sent either way. Whether an address has an unconfirmed
+      // account on this system is not something an unauthenticated form should
+      // confirm to whoever is typing into it.
+      setResent(true);
+      setError("");
+      setUnconfirmed(false);
     } finally {
       setLoading(false);
     }
@@ -73,8 +113,23 @@ export default function LoginPage() {
             />
 
             {error && (
-              <p className="text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
-                {error}
+              <div className="text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
+                <p>{error}</p>
+                {unconfirmed && (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="text-gold hover:text-gold-bright transition-colors mt-1.5 underline underline-offset-2"
+                  >
+                    Resend the confirmation email
+                  </button>
+                )}
+              </div>
+            )}
+
+            {resent && (
+              <p className="text-xs text-gold bg-gold-dim border border-gold/20 rounded-lg px-3 py-2">
+                If that address has an account awaiting confirmation, a new link is on its way.
               </p>
             )}
 
@@ -83,7 +138,16 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-sm text-text-3 text-center mt-4">
+          <p className="text-sm text-text-3 text-center mt-3">
+            <Link
+              href="/forgot-password"
+              className="text-text-3 hover:text-gold transition-colors"
+            >
+              Forgot your password?
+            </Link>
+          </p>
+
+          <p className="text-sm text-text-3 text-center mt-3">
             No account?{" "}
             <Link href="/signup" className="text-gold hover:text-gold-bright transition-colors">
               Create workspace
@@ -92,5 +156,15 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// useSearchParams opts the tree into client rendering, and Next requires the
+// boundary to be explicit or the build fails on this page.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-bg-0" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

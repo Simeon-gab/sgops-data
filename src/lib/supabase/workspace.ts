@@ -19,13 +19,25 @@ export async function getOrCreateWorkspace(
   // Workspace missing — auto-create (slug is deterministic so concurrent
   // inserts will fail on the unique constraint rather than create duplicates)
   const slug = `ws-${user.id.replace(/-/g, "").slice(0, 16)}`;
+
+  // Signup cannot write this row itself: it runs before the account is
+  // confirmed, so there is no session and row-level security refuses the
+  // insert. It puts the agency name on the user instead, and this is where it
+  // lands. It matters beyond cosmetics, since agency_name is the fallback
+  // sender name on every campaign email.
+  const agencyName =
+    typeof user.user_metadata?.agency_name === "string"
+      ? user.user_metadata.agency_name.trim()
+      : "";
+
   const { data: created } = await supabase
     .from("workspaces")
     .insert({
-      owner_id: user.id,
-      name:     "My Workspace",
+      owner_id:    user.id,
+      name:        agencyName || "My Workspace",
+      agency_name: agencyName || null,
       slug,
-      settings: {},
+      settings:    {},
     })
     .select()
     .single();
