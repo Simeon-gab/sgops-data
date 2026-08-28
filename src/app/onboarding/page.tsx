@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { GOAL_PRESETS, TONES, getGoalPreset, type GoalPreset } from "@/lib/utils/profiles";
 import type { SenderProfile, SenderTone } from "@/lib/utils/types";
+import { hardNavigate } from "@/lib/utils/hard-navigate";
 
 // Onboarding captures the sender profile: who is writing, what they want, and
 // who they are writing to. Every generated message, and the way leads are
@@ -36,7 +36,6 @@ const EMPTY: FormState = {
 };
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const [step, setStep] = useState<0 | 1>(0);
   const [preset, setPreset] = useState<GoalPreset | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -84,6 +83,8 @@ export default function OnboardingPage() {
     if (!preset) return;
 
     setSaving(true);
+    // See the sign-in path: held true across the full page load below.
+    let leaving = false;
     try {
       const res = await fetch("/api/profile", {
         method: "PUT",
@@ -94,12 +95,12 @@ export default function OnboardingPage() {
       if (!res.ok) throw new Error(data.error ?? "Could not save your profile");
 
       toast("Profile saved. Everything is tuned to you now.", "success");
-      router.push("/prospect");
-      router.refresh();
+      leaving = true;
+      hardNavigate("/prospect");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not save your profile", "error");
     } finally {
-      setSaving(false);
+      if (!leaving) setSaving(false);
     }
   }
 

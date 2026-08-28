@@ -2,12 +2,13 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { safeRedirect } from "@/lib/utils/safe-redirect";
+import { hardNavigate } from "@/lib/utils/hard-navigate";
 
 // The callback route reports a bad link as a code, and only these are shown.
 // Anything else in the query string is ignored rather than printed, so the URL
@@ -18,7 +19,6 @@ const LINK_ERRORS: Record<string, string> = {
 };
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const supabase = createClient();
   const [email, setEmail] = useState("");
@@ -37,6 +37,10 @@ function LoginForm() {
     setUnconfirmed(false);
     setResent(false);
     setLoading(true);
+    // Stays true across a successful sign-in: the navigation below is a full
+    // page load, so the form should hold its disabled state until the new
+    // document takes over instead of flicking back to an enabled button.
+    let leaving = false;
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
@@ -47,10 +51,10 @@ function LoginForm() {
         if (/not confirmed|confirm your email/i.test(error.message)) setUnconfirmed(true);
         return;
       }
-      router.push(safeRedirect(params.get("next")));
-      router.refresh();
+      leaving = true;
+      hardNavigate(safeRedirect(params.get("next")));
     } finally {
-      setLoading(false);
+      if (!leaving) setLoading(false);
     }
   }
 

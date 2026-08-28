@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Zap, MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { hardNavigate } from "@/lib/utils/hard-navigate";
 
 export default function SignupPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [agencyName, setAgencyName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,6 +25,8 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
+    // See the sign-in path: held true across the full page load below.
+    let leaving = false;
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -59,10 +60,10 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/prospect");
-      router.refresh();
+      leaving = true;
+      hardNavigate("/prospect");
     } finally {
-      setLoading(false);
+      if (!leaving) setLoading(false);
     }
   }
 

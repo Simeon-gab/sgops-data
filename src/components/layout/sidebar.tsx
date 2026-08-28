@@ -18,7 +18,7 @@ import {
   User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { hardNavigate } from "@/lib/utils/hard-navigate";
 
 interface SidebarProps {
   onClose?: () => void;
@@ -40,7 +40,6 @@ const BOTTOM_ITEMS = [
 
 export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = createClient();
   const [signingOut, setSigningOut] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -62,8 +61,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     try {
       await supabase.auth.signOut();
       onClose?.();
-      router.push("/login");
-      router.refresh();
+      hardNavigate("/login");
     } catch {
       setSigningOut(false);
     }

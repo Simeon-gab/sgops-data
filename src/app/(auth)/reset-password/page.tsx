@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { hardNavigate } from "@/lib/utils/hard-navigate";
 
 // Reached only by following a recovery link, which passes through
 // /auth/callback first. By the time anyone is here they are signed in on a
@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 const MIN_LENGTH = 8;
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -52,16 +51,18 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
+    // See the sign-in path: held true across the full page load below.
+    let leaving = false;
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
         setError(updateError.message);
         return;
       }
-      router.push("/prospect");
-      router.refresh();
+      leaving = true;
+      hardNavigate("/prospect");
     } finally {
-      setLoading(false);
+      if (!leaving) setLoading(false);
     }
   }
 
