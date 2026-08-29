@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle, ChevronRight, Trophy } from "lucide-react";
 import { useProspect } from "@/hooks/useProspect";
-import { useAppStore } from "@/store";
+import { useAppStore, rehydrateProspectState } from "@/store";
 import { ProspectForm } from "@/components/prospect/prospect-form";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
@@ -21,6 +21,13 @@ export default function ProspectPage() {
   // Show fresh result if a new search just ran, otherwise fall back to the stored one
   const result = freshResult ?? storedResult;
 
+  // After mount, not during render: the stored search lives in sessionStorage,
+  // which the server cannot see, so reading it any earlier would make the first
+  // client render disagree with the server HTML.
+  useEffect(() => {
+    rehydrateProspectState();
+  }, []);
+
   // Persist to store whenever a search completes
   useEffect(() => {
     if (freshResult && lastRequest) {
@@ -34,6 +41,16 @@ export default function ProspectPage() {
     setLastRequest(req);
     run(req);
   };
+
+  // The form seeds its fields from initialValues once, on mount. The stored
+  // search arrives a tick later, after rehydration, so the key remounts it to
+  // pick those values up. Once a search has run the key stops changing, because
+  // the request it is built from is the one already in the fields.
+  const formKey = useMemo(() => {
+    if (!storedRequest) return "empty";
+    const { niche_id, country, state, city, result_count } = storedRequest;
+    return [niche_id, country, state, city, result_count].join("|");
+  }, [storedRequest]);
 
   // Build the "View all leads" href with niche/location pre-applied as filters.
   // Use lead[0] for location names (already normalized to full text by the cleaner).
@@ -61,6 +78,7 @@ export default function ProspectPage() {
 
       <div className="bg-bg-2 border border-border rounded-2xl p-6 mb-6">
         <ProspectForm
+          key={formKey}
           onSubmit={handleSubmit}
           loading={loading}
           initialValues={storedRequest ?? undefined}

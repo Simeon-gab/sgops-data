@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, ChevronLeft } from "lucide-react";
 import { clsx } from "clsx";
 import { TierBadge, StageBadge } from "@/components/ui/badge";
+import { useHistoryDismiss } from "@/hooks/useHistoryDismiss";
 import { OverviewTab }    from "./tabs/overview-tab";
 import { ColdEmailTab }   from "./tabs/cold-email-tab";
 import { CallScriptTab }  from "./tabs/call-script-tab";
@@ -51,6 +52,9 @@ export function LeadDetailPanel({ lead, onClose, onLeadUpdated }: LeadDetailPane
   useEffect(() => {
     if (lead) setCurrentLead(lead);
   }, [lead]);
+
+  // The device and browser Back button close the panel, the same as Escape does.
+  useHistoryDismiss(open, onClose);
 
   // Escape key
   useEffect(() => {
