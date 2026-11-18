@@ -28,11 +28,14 @@ export function useLeadsExport() {
       }
 
       const rows = Number(res.headers.get("X-Export-Rows") ?? "0");
+      // The server names the file after the filters and the row count.
+      const named = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+      const filename = named?.[1] ?? `sgops-leads-${new Date().toISOString().slice(0, 10)}.csv`;
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = `sgops-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -41,7 +44,7 @@ export function useLeadsExport() {
 
       toast(
         rows > 0
-          ? `Exported ${rows.toLocaleString()} ${rows === 1 ? "lead" : "leads"}`
+          ? `Exported ${rows.toLocaleString()} ${rows === 1 ? "lead" : "leads"} to ${filename}`
           : "No leads matched, so the file has only its header row",
         rows > 0 ? "success" : "info"
       );

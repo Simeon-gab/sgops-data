@@ -1,4 +1,5 @@
 import type { Lead, CleanedExportRecord } from "./types";
+import { NICHES, PIPELINE_STAGES } from "./constants";
 
 // Building the leads CSV. Pure, so it can be tested without a database.
 //
@@ -82,5 +83,53 @@ export function toCSV(leads: ExportLead[]): string {
   }
   // The byte order mark is what makes Excel read the file as UTF-8. Without it
   // accented names and non-Latin scripts open as mojibake.
-  return "﻿" + lines.join("\r\n") + "\r\n";
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
+}
+
+// ── File name ────────────────────────────────────────────────────────────────
+// Named after what is in it, so six exports in a downloads folder can be told
+// apart without opening them: "bakeries-cafes-dallas-hot-50-leads-2026-11-18.csv"
+// rather than six copies of "sgops-leads".
+//
+// The parts follow the filters that produced the file, in the order a person
+// would say them: what, where, which ones, how many. The count is the number of
+// rows actually in the file.
+
+// Lowercase words joined by hyphens, safe on every operating system. Accents
+// are folded to their base letter so the name survives a zip or an upload.
+function slug(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+}
+
+export function exportFilename(
+  params: URLSearchParams,
+  rowCount: number,
+  now: Date = new Date()
+): string {
+  const get = (key: string) => params.get(key)?.trim() ?? "";
+
+  const nicheId = get("niche");
+  const niche = NICHES.find((n) => n.id === nicheId)?.label ?? nicheId;
+  const stageId = get("stage");
+  const stage = PIPELINE_STAGES.find((s) => s.id === stageId)?.label ?? stageId;
+  // The most specific place named is enough: "dallas", not "dallas-texas-usa".
+  const place = get("city") || get("state") || get("country");
+
+  const parts = [niche, place, get("q"), get("tier"), stage, get("quality")]
+    .map(slug)
+    .filter(Boolean);
+
+  const what = parts.length ? parts.join("-") : "all";
+  const count = `${rowCount}-${rowCount === 1 ? "lead" : "leads"}`;
+  const date = now.toISOString().slice(0, 10);
+
+  return `${what}-${count}-${date}.csv`;
 }

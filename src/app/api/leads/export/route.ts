@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/supabase/workspace";
 import { applyLeadFilters } from "@/lib/supabase/lead-filters";
-import { EXPORT_COLUMNS, toCSV, type ExportLead } from "@/lib/utils/leads-export";
+import {
+  EXPORT_COLUMNS,
+  exportFilename,
+  toCSV,
+  type ExportLead,
+} from "@/lib/utils/leads-export";
 import type { ApiError } from "@/lib/utils/types";
 
 // GET /api/leads/export
@@ -92,12 +97,13 @@ export async function GET(request: Request) {
     }
   }
 
-  const date = new Date().toISOString().slice(0, 10);
+  // Named after the filters and the row count. See exportFilename.
+  const filename = exportFilename(searchParams, leads.length);
 
   return new NextResponse(toCSV(leads), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="sgops-leads-${date}.csv"`,
+      "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
       "X-Export-Rows": String(leads.length),
     },

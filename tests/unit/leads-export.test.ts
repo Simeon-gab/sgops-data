@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXPORT_HEADERS, toCSV, type ExportLead } from "@/lib/utils/leads-export";
+import {
+  EXPORT_HEADERS,
+  exportFilename,
+  toCSV,
+  type ExportLead,
+} from "@/lib/utils/leads-export";
 
 // The CSV is opened in a spreadsheet by someone who will act on it. These
 // guard the ways a file can open wrong without anyone being told.
@@ -38,7 +43,7 @@ function lead(over: Partial<ExportLead> = {}): ExportLead {
   } as ExportLead;
 }
 
-const BOM = "﻿";
+const BOM = "\uFEFF";
 const lines = (csv: string) => csv.replace(BOM, "").trimEnd().split("\r\n");
 
 test("an export with no leads still has its header row", () => {
@@ -87,4 +92,48 @@ test("social profiles are split into their own columns", () => {
 
   assert.equal(row[header.indexOf("social_instagram")], "https://instagram.com/harvest");
   assert.equal(row[header.indexOf("instagram_followers")], "1200");
+});
+
+// ── The file name ────────────────────────────────────────────────────────────
+
+const DAY = new Date("2026-11-18T10:00:00.000Z");
+const named = (query: string, rows: number) =>
+  exportFilename(new URLSearchParams(query), rows, DAY);
+
+test("the file is named after the filters that produced it", () => {
+  assert.equal(
+    named("niche=bakery_cafe&city=Dallas&tier=hot", 50),
+    "bakeries-cafes-dallas-hot-50-leads-2026-11-18.csv"
+  );
+});
+
+test("an unfiltered export says so, with its size", () => {
+  assert.equal(named("", 2013), "all-2013-leads-2026-11-18.csv");
+  assert.equal(named("", 1), "all-1-lead-2026-11-18.csv");
+});
+
+test("only the most specific place is used", () => {
+  assert.equal(
+    named("country=United+States&state=Texas&city=Dallas", 7),
+    "dallas-7-leads-2026-11-18.csv"
+  );
+  assert.equal(named("country=Nigeria&state=Lagos", 7), "lagos-7-leads-2026-11-18.csv");
+});
+
+test("stage, quality and search text are included", () => {
+  assert.equal(
+    named("q=mama&stage=closed&quality=verified", 3),
+    "mama-closed-won-verified-3-leads-2026-11-18.csv"
+  );
+});
+
+test("the name is safe on every operating system", () => {
+  const name = named("city=" + encodeURIComponent('São Paulo / "Centro"') + "&q=" + encodeURIComponent("a\\b:c*?"), 2);
+
+  assert.equal(name, "sao-paulo-centro-a-b-c-2-leads-2026-11-18.csv");
+  assert.match(name, /^[a-z0-9.-]+$/);
+});
+
+test("an unknown niche id is used as written rather than dropped", () => {
+  assert.equal(named("niche=custom_thing", 4), "custom-thing-4-leads-2026-11-18.csv");
 });
