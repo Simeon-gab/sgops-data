@@ -1,5 +1,6 @@
 import type { CampaignPlaybook, Lead, OutreachGoal, SenderProfile } from "@/lib/utils/types";
 import { siteUnverified } from "@/lib/engine/enricher";
+import { citableContact, isFactCitable, isResearchStale } from "@/lib/utils/research";
 
 export interface GenerationContext {
   lead: Lead;
@@ -114,6 +115,10 @@ ${playbookBlock}`;
 //
 // Observations are also filtered by goal. A job seeker does not care whether a
 // hospital has video on its website.
+//
+// And by age. A fact is true on the day it was seen, so findings that expire (a
+// vacancy, an ad, something missing from a website) are held back once the
+// research is more than a month old. See lib/utils/research.ts.
 
 export interface Observation {
   text: string;
@@ -131,7 +136,11 @@ const FACTS_FOR_EVERY_GOAL = new Set([
 
 const ENRICHMENT_SOURCE = "Their website and search results, checked during enrichment";
 
-export function generateObservations(lead: Lead, profile: SenderProfile): Observation[] {
+export function generateObservations(
+  lead: Lead,
+  profile: SenderProfile,
+  now: Date = new Date()
+): Observation[] {
   const obs: Observation[] = [];
   const goal = profile.goal;
   const isMarketingSeller = goal === "win_clients";
@@ -148,6 +157,7 @@ export function generateObservations(lead: Lead, profile: SenderProfile): Observ
         (fact.key === "video" || fact.key === "blog" || fact.key.startsWith("social:"))) ||
       ((isMarketingSeller || isBuyerFocused) && fact.key === "google_ads");
     if (!relevant) continue;
+    if (!isFactCitable(fact.key, research!, now)) continue;
 
     obs.push({
       text: `${fact.statement}.`,
@@ -182,7 +192,7 @@ export function generateObservations(lead: Lead, profile: SenderProfile): Observ
         evidence: null,
       });
     }
-    if (research?.website_read && !lead.has_video_content) {
+    if (research?.website_read && !lead.has_video_content && !isResearchStale(research, now)) {
       obs.push({
         text: "No video was found on their homepage, and no Instagram, TikTok or YouTube profile could be tied to them.",
         source: ENRICHMENT_SOURCE,
@@ -231,14 +241,18 @@ interface LeadSnapshot {
   tier: string;
 }
 
-function leadSnapshot(lead: Lead): LeadSnapshot {
+function leadSnapshot(lead: Lead, now: Date = new Date()): LeadSnapshot {
   const enriched = lead.enriched_at !== null;
   // Enrichment ran and recorded what it saw. Leads enriched before evidence
   // was kept have research = null, and their findings are not trusted.
   const researched = enriched && lead.research !== null;
   // What a website does or does not contain is only known when it was read. A
   // lead with no website has nothing to read, so that much is known too.
-  const siteKnown = researched && !siteUnverified(lead.website, lead.research);
+  const siteRead = researched && !siteUnverified(lead.website, lead.research);
+  // Research older than a month no longer vouches for anything that can
+  // change, so those fields go back to "unknown" until the lead is rechecked.
+  const fresh = researched && !isResearchStale(lead.research, now);
+  const siteKnown = siteRead && fresh;
 
   return {
     name: lead.name,
@@ -256,9 +270,9 @@ function leadSnapshot(lead: Lead): LeadSnapshot {
     website: lead.website,
     website_quality: siteKnown ? lead.website_quality : "unknown",
     social_platforms: researched ? lead.social_profiles.map((s) => s.platform) : "unknown",
-    runs_ads: researched ? lead.runs_google_ads || lead.runs_meta_ads : "unknown",
+    runs_ads: fresh ? lead.runs_google_ads || lead.runs_meta_ads : "unknown",
     business_signals: siteKnown ? lead.business_signals : "unknown",
-    years_in_business: siteKnown ? lead.years_in_business : "unknown",
+    years_in_business: siteRead ? lead.years_in_business : "unknown",
     estimated_employees: researched ? lead.estimated_employees : "unknown",
     competitor_names: lead.competitors.map((c) => c.name),
     score: lead.score,
@@ -285,8 +299,18 @@ const ACCURACY_RULES = `Accuracy rules (follow strictly):
 // time. Gong's analysis of 304,174 sales emails found interest-based asks the
 // best performing call to action on a cold first touch; asking for a specific
 // slot only wins later, once a conversation exists.
-export function coldEmailPrompt(ctx: GenerationContext, observations: Observation[]): string {
+export function coldEmailPrompt(
+  ctx: GenerationContext,
+  observations: Observation[],
+  now: Date = new Date()
+): string {
   const { lead, profile } = ctx;
+  // A first name is used only when enrichment proved one and it is recent.
+  // Otherwise the team is greeted, which is never wrong.
+  const contact = citableContact(lead.enriched_at !== null ? lead.research : null, now);
+  const greeting = contact
+    ? `"Hi ${contact.first_name}," on its own line. Use the first name exactly as written and do not mention their job title or how their name was found.`
+    : `"Hi ${lead.name} team," on its own line.`;
   const signOff = [profile.sender_name, profile.sender_role, profile.organization]
     .filter(Boolean)
     .join(", ");
@@ -302,7 +326,7 @@ export function coldEmailPrompt(ctx: GenerationContext, observations: Observatio
   return `Write a cold email to ${lead.name}.
 
 Lead data:
-${JSON.stringify(leadSnapshot(lead), null, 2)}
+${JSON.stringify(leadSnapshot(lead, now), null, 2)}
 
 Verified observations (the only specific things you may say about them):
 ${observationList(observations, "None.")}
@@ -310,7 +334,7 @@ ${observationList(observations, "None.")}
 ${ACCURACY_RULES}
 
 Write the body in exactly this order, as short plain paragraphs with a blank line between them:
-1. Greeting: "Hi ${lead.name} team," on its own line.
+1. Greeting: ${greeting}
 2. ${opener}
 3. Bridge: one sentence on what that commonly costs businesses like theirs, or makes possible for them. This is your reasoning, not something you know about them, so word it as general ("often", "can", "tends to") and never as a fact about this business.
 4. Offer: one or two sentences on what the sender does about it. ${proof}

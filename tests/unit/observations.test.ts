@@ -60,8 +60,13 @@ const research = (over: Partial<LeadResearch> = {}): LeadResearch => ({
   ...over,
 });
 
-const texts = (l: Lead, goal: SenderProfile["goal"] = "win_clients") =>
-  generateObservations(l, profile(goal)).map((o) => o.text);
+// The clock is fixed: research is dated, and these would otherwise start
+// failing a month after they were written.
+const NOW = new Date("2026-11-20T00:00:00.000Z");
+const LATER = new Date("2027-01-15T00:00:00.000Z");
+
+const texts = (l: Lead, goal: SenderProfile["goal"] = "win_clients", now = NOW) =>
+  generateObservations(l, profile(goal), now).map((o) => o.text);
 
 test("a lead that was never enriched yields nothing about its website", () => {
   assert.deepEqual(texts(lead()), []);
@@ -100,7 +105,7 @@ test("a recorded fact comes through with its source and its proof", () => {
     }),
   });
 
-  const [obs] = generateObservations(l, profile("find_job"));
+  const [obs] = generateObservations(l, profile("find_job"), NOW);
 
   assert.equal(obs.text, "Their website links to a careers or jobs page.");
   assert.equal(obs.source_url, "https://harvesttable.example");
@@ -168,7 +173,7 @@ test("an unread website is reported to the model as unknown, never as false", ()
     enriched_at: "2026-11-18T00:00:00.000Z",
     research: research({ website_read: false }),
   });
-  const prompt = coldEmailPrompt({ lead: l, profile: profile("win_clients"), playbook }, []);
+  const prompt = coldEmailPrompt({ lead: l, profile: profile("win_clients"), playbook }, [], NOW);
 
   assert.match(prompt, /"has_video": "unknown"/);
   assert.match(prompt, /"website_quality": "unknown"/);
@@ -184,4 +189,56 @@ test("the email has no proof point to invent when the sender gave none", () => {
     []
   );
   assert.match(withProof, /one proof point from the sender's credibility/);
+});
+
+// ── Research goes out of date ────────────────────────────────────────────────
+
+const dated = () =>
+  lead({
+    enriched_at: "2026-11-18T00:00:00.000Z",
+    research: research({
+      facts: [
+        { key: "hiring", statement: "Their careers page is advertising open roles", source_url: "u", evidence: "Apply now" },
+        { key: "founded", statement: "Their website says they have been operating since 1998", source_url: "u", evidence: "since 1998" },
+      ],
+      contact: {
+        name: "Amaka Eze", first_name: "Amaka", role: "Managing Director",
+        found_via: "website", source_url: "u", evidence: "Structured data",
+      },
+    }),
+  });
+
+test("after a month a vacancy is no longer cited, but a founding year still is", () => {
+  assert.equal(texts(dated(), "find_job", NOW).length, 2);
+  assert.deepEqual(texts(dated(), "find_job", LATER), [
+    "Their website says they have been operating since 1998.",
+  ]);
+});
+
+test("after a month nothing is said to be missing from a website", () => {
+  const l = lead({ enriched_at: "2026-11-18T00:00:00.000Z", research: research() });
+
+  assert.ok(texts(l, "win_clients", NOW).some((t) => /^No video was found/.test(t)));
+  assert.deepEqual(texts(l, "win_clients", LATER), []);
+
+  const prompt = coldEmailPrompt({ lead: l, profile: profile("win_clients"), playbook }, [], LATER);
+  assert.match(prompt, /"has_video": "unknown"/);
+});
+
+// ── Who the email is addressed to ────────────────────────────────────────────
+
+test("a proven contact is greeted by first name, and only while the research is fresh", () => {
+  const ctx = { lead: dated(), profile: profile("find_job"), playbook };
+
+  assert.match(coldEmailPrompt(ctx, [], NOW), /Greeting: "Hi Amaka,"/);
+  assert.match(
+    coldEmailPrompt(ctx, [], LATER),
+    /Greeting: "Hi Harvest Table Foods team,"/,
+    "people move on; a stale name is not used"
+  );
+});
+
+test("with no contact the team is greeted", () => {
+  const prompt = coldEmailPrompt({ lead: lead(), profile: profile("find_job"), playbook }, [], NOW);
+  assert.match(prompt, /Greeting: "Hi Harvest Table Foods team,"/);
 });

@@ -82,6 +82,25 @@ export interface LeadResearch {
   website_read: boolean;
   checked_at: string;
   facts: ResearchFact[];
+  // Pages beyond the homepage that were read (a careers or about page).
+  pages_read?: string[];
+  // A named person at the business, when one could be proven. Absent on
+  // research recorded before contacts were looked for.
+  contact?: ResearchContact | null;
+}
+
+// A person to address the email to. Held to the same rule as a fact: the name
+// comes with the page that shows it, or it is not used. A wrong first name in
+// a greeting is worse than "Hi team".
+export interface ResearchContact {
+  name: string;
+  first_name: string;
+  role: string | null;
+  // "website": named in the structured data of their own site.
+  // "hunter": listed by Hunter.io, with a public page that still shows them.
+  found_via: "website" | "hunter";
+  source_url: string;
+  evidence: string;
 }
 
 export interface SocialProfile {

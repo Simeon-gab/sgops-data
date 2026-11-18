@@ -1,4 +1,5 @@
 import type { Lead } from "./types";
+import { citableContact } from "./research";
 
 // Merge fields for campaign templates: {{first_name}}, {{company}}, and any
 // column carried over from an imported CSV.
@@ -27,9 +28,12 @@ export function builtinFields(lead: Lead): Record<string, string> {
     name,
     business_name: name,
     company: lead.custom_fields?.company?.toString().trim() || name,
-    // Best-effort personal first name. For a business-named lead this is just
-    // the first word, so templates should prefer a fallback: {{first_name|there}}
-    first_name: name.split(/\s+/)[0] ?? "",
+    // A real person's first name when enrichment proved one and it is recent.
+    // Otherwise this is just the first word of the business name, so templates
+    // should prefer a fallback: {{first_name|there}}
+    first_name:
+      citableContact(lead.enriched_at ? lead.research : null)?.first_name ||
+      (name.split(/\s+/)[0] ?? ""),
     email: lead.email ?? "",
     phone: lead.phone_formatted || lead.phone || "",
     website: lead.website ?? "",

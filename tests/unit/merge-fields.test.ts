@@ -111,3 +111,21 @@ test("text with no placeholders passes through untouched", () => {
   assert.equal(result.text, "Plain text, no fields.");
   assert.deepEqual(result.unresolved, []);
 });
+
+test("first_name is a real person when enrichment proved one, not the first word of the business", () => {
+  const withContact = lead({
+    name: "Harvest Table Foods",
+    enriched_at: new Date().toISOString(),
+    research: {
+      website_read: true,
+      checked_at: new Date().toISOString(),
+      facts: [],
+      contact: {
+        name: "Amaka Eze", first_name: "Amaka", role: "Managing Director",
+        found_via: "website", source_url: "https://x.example/about", evidence: "Structured data",
+      },
+    },
+  });
+
+  assert.equal(render("Hi {{first_name|there}},", withContact).text, "Hi Amaka,");
+});

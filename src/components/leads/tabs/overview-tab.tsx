@@ -4,8 +4,11 @@ import { useState } from "react";
 import {
   Phone, Mail, Globe, Star, MapPin, Video, BookOpen,
   Instagram, Facebook, Youtube, Linkedin, Megaphone,
-  TrendingUp, Users, Sparkles, AlertCircle, ShieldCheck,
+  TrendingUp, Users, Sparkles, AlertCircle, ShieldCheck, UserRound, Clock,
 } from "lucide-react";
+import {
+  RESEARCH_MAX_AGE_DAYS, isFactCitable, isResearchStale, researchAgeDays,
+} from "@/lib/utils/research";
 import { TierBadge, QualityBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clsx } from "clsx";
@@ -191,6 +194,10 @@ export function OverviewTab({ lead }: OverviewTabProps) {
   const siteUnread = Boolean(lead.website) && research !== null && !research.website_read;
   // Enriched before evidence was recorded. Its findings have no proof attached.
   const unverified = Boolean(lead.enriched_at) && research === null;
+  // Checked more than a month ago. Findings that can expire are held back from
+  // outreach, and shown here as such, until the lead is enriched again.
+  const stale = isResearchStale(research);
+  const contact = research?.contact ?? null;
 
   return (
     <div className="p-6 space-y-6">
@@ -331,21 +338,71 @@ export function OverviewTab({ lead }: OverviewTabProps) {
               </p>
             </div>
           )}
-          {research && research.facts.length === 0 && !siteUnread && (
+          {research && stale && (
+            <div className="flex items-start gap-2 mb-2.5">
+              <Clock className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-text-3 leading-relaxed">
+                Checked {researchAgeDays(research)} days ago. Anything that can go out of
+                date after {RESEARCH_MAX_AGE_DAYS} days (job openings, ads, the named contact)
+                is held back from outreach until this lead is enriched again.
+              </p>
+            </div>
+          )}
+          {contact && (
+            <div className="flex items-start gap-2.5 py-2 px-3 mb-1.5 rounded-lg bg-bg-3/60">
+              <UserRound
+                className={clsx("h-3.5 w-3.5 mt-0.5 shrink-0", stale ? "text-amber-400" : "text-green-400")}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-text-1 font-medium leading-snug">
+                  {contact.name}
+                  {contact.role && <span className="text-text-3 font-normal">, {contact.role}</span>}
+                </p>
+                <p className="text-[11px] text-text-3 mt-0.5 leading-snug break-words">
+                  {stale
+                    ? "May have moved on. Emails greet the team until this is rechecked."
+                    : `${contact.evidence}. Emails are addressed to ${contact.first_name}.`}
+                </p>
+                <a
+                  href={contact.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-text-3 underline hover:text-gold transition-colors"
+                >
+                  Check the source
+                </a>
+              </div>
+            </div>
+          )}
+          {research && research.facts.length === 0 && !contact && !siteUnread && (
             <p className="text-xs text-text-3 italic">
               Nothing specific was found that can be proven.
             </p>
           )}
           {research && research.facts.length > 0 && (
             <div className="space-y-1.5">
-              {research.facts.map((f) => (
+              {research.facts.map((f) => {
+                const expired = !isFactCitable(f.key, research);
+                return (
                 <div
                   key={`${f.key}:${f.source_url}`}
                   className="flex items-start gap-2.5 py-2 px-3 rounded-lg bg-bg-3/60"
                 >
-                  <ShieldCheck className="h-3.5 w-3.5 text-green-400 mt-0.5 shrink-0" />
+                  {expired ? (
+                    <Clock className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                  ) : (
+                    <ShieldCheck className="h-3.5 w-3.5 text-green-400 mt-0.5 shrink-0" />
+                  )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-text-1 font-medium leading-snug">{f.statement}</p>
+                    <p
+                      className={clsx(
+                        "text-xs font-medium leading-snug",
+                        expired ? "text-text-3" : "text-text-1"
+                      )}
+                    >
+                      {f.statement}
+                      {expired && <span className="font-normal"> (may be out of date)</span>}
+                    </p>
                     <p className="text-[11px] text-text-3 mt-0.5 leading-snug break-words">
                       {f.evidence}
                     </p>
@@ -359,7 +416,8 @@ export function OverviewTab({ lead }: OverviewTabProps) {
                     </a>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Section>

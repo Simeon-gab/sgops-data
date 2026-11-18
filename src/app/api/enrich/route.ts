@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
   }
 
   const serpApiKey = process.env.SERPAPI_KEY;
+  const hunterApiKey = process.env.HUNTER_API_KEY;
   const scoringProfile = resolveSenderProfile(workspace).scoring_profile;
   const enriched: Lead[] = [];
 
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
 
     const record = toCleanRecord(lead);
 
-    const enrichment = await enrichLead(record, { serpApiKey, competitors });
+    const enrichment = await enrichLead(record, { serpApiKey, hunterApiKey, competitors });
     // Scoring is relative to what this sender wants, not to a fixed definition
     // of a good lead. See SCORING_PROFILES in constants.
     const { score, tier, breakdown } = scoreLead(record, enrichment, scoringProfile);

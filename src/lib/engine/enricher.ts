@@ -3,8 +3,11 @@ import type {
   SocialProfile,
   Competitor,
   LeadResearch,
+  ResearchContact,
   ResearchFact,
 } from "@/lib/utils/types";
+import { isNonBusinessDomain } from "@/lib/utils/email-domains";
+import { findContactByDomain } from "@/lib/api/hunter";
 
 // Enrichment is the research step: it reads a business's own website and a few
 // search results, and records what it found.
@@ -22,6 +25,12 @@ import type {
 //      result is often another business with a similar name.
 //   3. Patterns are matched against the text a visitor can read, not the raw
 //      HTML, where "jobs" and "careers" turn up inside scripts and trackers.
+//
+// Beyond the homepage it reads at most two more pages on the same site, the
+// ones the homepage itself links to as careers and about. The careers page is
+// what turns "they have a careers link" into "they are advertising roles", or
+// into nothing at all when it says there are no openings. The about page is
+// where a founding year and the people behind the business are usually stated.
 
 export interface EnrichmentResult {
   has_video_content: boolean;
@@ -40,6 +49,8 @@ export interface EnrichmentResult {
 
 export interface EnricherOptions {
   serpApiKey?: string;
+  // Used only to find a named contact when the website itself names nobody.
+  hunterApiKey?: string;
   competitors?: Competitor[];
 }
 
@@ -118,6 +129,15 @@ const HIRING_HREF = /\/(?:careers?|jobs|vacanc(?:y|ies)|join-us|join-our-team|wo
 const HIRING_LINK_TEXT = /^(?:careers?|jobs|vacancies|we(?:'| a)re hiring|join our team|work with us|current openings)$/i;
 const HIRING_TEXT = /\b(?:we(?:'| a)re hiring|now hiring|join our team|current vacancies|open positions)\b/i;
 
+// What a careers page says when it is actually recruiting, and what it says
+// when it is not. A careers link in a footer outlives the last vacancy by
+// years, so the page is read before anyone is told the business is hiring.
+const OPENINGS_TEXT = /\b(?:apply now|open (?:positions|roles)|current (?:openings|vacancies|opportunities)|job openings|we(?:'| a)re hiring|now hiring)\b/i;
+const NO_OPENINGS_TEXT = /\b(?:no (?:current |open |job )?(?:vacancies|openings|positions|opportunities|roles)|not (?:currently |presently )?(?:hiring|recruiting)|no jobs (?:available|at (?:this|the) (?:time|moment)))\b/i;
+
+const ABOUT_HREF = /\/(?:about(?:-us)?|our-story|who-we-are|our-company|our-team|team|leadership|management)(?:[/?.]|$)/i;
+const ABOUT_LINK_TEXT = /^(?:about(?: us)?|our story|who we are|our team|leadership|management team|meet the team)$/i;
+
 // "Established 1998", "Since 1998", "Founded in 1998". A copyright year is
 // deliberately not accepted: it is the year the footer was last touched, which
 // is usually this year, and it used to be reported as the age of the business.
@@ -180,6 +200,131 @@ function snippet(text: string, index: number, length: number, pad = 50): string 
     text.slice(start, end).trim() +
     (end < text.length ? "..." : "")
   );
+}
+
+interface Page {
+  html: string;
+  url: string;
+}
+
+// One page, or null when it could not be fetched. Never throws.
+async function readPage(url: string, ms: number): Promise<Page | null> {
+  try {
+    const res = await withTimeout(url, ms, {
+      headers: {
+        "user-agent": "Mozilla/5.0 (compatible; SgOpsData/1.0; business research)",
+        accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, MAX_HTML_CHARS);
+    if (!html) return null;
+    return { html, url: res.url || url };
+  } catch {
+    return null;
+  }
+}
+
+// A link worth following: a different page on the same site, over http.
+function followable(href: string, pageUrl: string): string | null {
+  try {
+    const target = new URL(href, pageUrl);
+    if (target.protocol !== "http:" && target.protocol !== "https:") return null;
+    target.hash = "";
+    const here = new URL(pageUrl);
+    here.hash = "";
+    if (!sameSite(hostOf(target.toString()), hostOf(pageUrl))) return null;
+    const strip = (u: URL) => u.toString().replace(/\/$/, "");
+    return strip(target) === strip(here) ? null : target.toString();
+  } catch {
+    return null;
+  }
+}
+
+// ── People named in structured data ───────────────────────────────────────────
+// Businesses that publish schema.org data sometimes name their founder or staff
+// in it. That is the business stating, in a machine-readable form, who a person
+// is and what they do, which is as good as proof of a name gets without asking.
+// Names are not read out of page text: telling a founder's name from a
+// customer's in a testimonial is guesswork.
+
+const HONORIFIC = /^(?:mr|mrs|ms|miss|dr|prof|engr|chief|sir|madam|alhaji|alhaja|pastor|rev)\.?\s+/i;
+const NAME_WORD = /^[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F'.-]*$/;
+const SENIOR_ROLE = /\b(?:founder|owner|ceo|chief|president|managing director|director|partner|principal|head|manager)\b/i;
+
+function personName(raw: unknown): { name: string; first_name: string } | null {
+  if (typeof raw !== "string") return null;
+  let name = raw.replace(/\s+/g, " ").trim();
+  while (HONORIFIC.test(name)) name = name.replace(HONORIFIC, "");
+
+  const parts = name.split(" ");
+  if (name.length > 60 || parts.length < 2 || parts.length > 4) return null;
+  if (!parts.every((p) => NAME_WORD.test(p))) return null;
+  // "J. Okafor" gives nothing to greet with.
+  if (parts[0].replace(/[^A-Za-z\u00C0-\u024F]/g, "").length < 2) return null;
+
+  return { name, first_name: parts[0] };
+}
+
+export function structuredContact(
+  html: string,
+  businessName: string,
+  pageUrl: string
+): ResearchContact | null {
+  const found: { name: string; first_name: string; role: string; rank: number }[] = [];
+
+  const take = (value: unknown, founder: boolean) => {
+    for (const entry of Array.isArray(value) ? value : [value]) {
+      const obj =
+        entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>) : null;
+      const person = personName(obj ? obj.name : entry);
+      if (!person) continue;
+      if (compact(person.name) === compact(businessName)) continue;
+
+      const title = obj && typeof obj.jobTitle === "string" ? obj.jobTitle.trim() : "";
+      // Staff are only useful with a stated role. A founder is one already.
+      if (!founder && !title) continue;
+      const role = (title || "Founder").slice(0, 80);
+      found.push({ ...person, role, rank: founder ? 0 : SENIOR_ROLE.test(role) ? 1 : 2 });
+    }
+  };
+
+  const visit = (node: unknown, depth: number) => {
+    if (depth > 6 || node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === "founder" || key === "founders") take(value, true);
+      else if (key === "employee" || key === "employees") take(value, false);
+      else visit(value, depth + 1);
+    }
+  };
+
+  const blocks = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = blocks.exec(html)) !== null) {
+    try {
+      visit(JSON.parse(m[1]), 0);
+    } catch {
+      // Malformed structured data is common. It proves nothing either way.
+    }
+  }
+
+  found.sort((a, b) => a.rank - b.rank);
+  const best = found[0];
+  if (!best) return null;
+
+  return {
+    name: best.name,
+    first_name: best.first_name,
+    role: best.role,
+    found_via: "website",
+    source_url: pageUrl,
+    evidence: `Their website's structured data names ${best.name} as ${best.role}`,
+  };
 }
 
 interface PageLink {
@@ -263,6 +408,8 @@ interface WebsiteScan {
   years_in_business: number | null;
   business_signals: string[];
   facts: ResearchFact[];
+  contact: ResearchContact | null;
+  pages_read: string[];
 }
 
 const UNREAD: WebsiteScan = {
@@ -274,29 +421,15 @@ const UNREAD: WebsiteScan = {
   years_in_business: null,
   business_signals: [],
   facts: [],
+  contact: null,
+  pages_read: [],
 };
 
-async function scanWebsite(rawUrl: string): Promise<WebsiteScan> {
-  const requested = normalizeUrl(rawUrl);
+async function scanWebsite(rawUrl: string, businessName: string): Promise<WebsiteScan> {
+  const home = await readPage(normalizeUrl(rawUrl), 7_000);
+  if (!home) return UNREAD;
 
-  let html = "";
-  let pageUrl = requested;
-  try {
-    const res = await withTimeout(requested, 7_000, {
-      headers: {
-        "user-agent": "Mozilla/5.0 (compatible; SgOpsData/1.0; business research)",
-        accept: "text/html,application/xhtml+xml",
-      },
-      redirect: "follow",
-    });
-    if (!res.ok) return UNREAD;
-    html = (await res.text()).slice(0, MAX_HTML_CHARS);
-    if (res.url) pageUrl = res.url;
-  } catch {
-    return UNREAD;
-  }
-  if (!html) return UNREAD;
-
+  const { html, url: pageUrl } = home;
   const text = visibleText(html);
   const links = extractLinks(html);
   const facts: ResearchFact[] = [];
@@ -322,12 +455,42 @@ async function scanWebsite(rawUrl: string): Promise<WebsiteScan> {
     }
   }
 
-  // Hiring: a careers link first, then an explicit sentence.
+  // The two pages worth a second request, when the homepage links to them.
   const careers = links.find(
     (l) => HIRING_HREF.test(l.href) || HIRING_LINK_TEXT.test(l.text)
   );
+  const about = links.find(
+    (l) => ABOUT_HREF.test(l.href) || ABOUT_LINK_TEXT.test(l.text)
+  );
+  const careersUrl = careers ? followable(careers.href, pageUrl) : null;
+  const aboutUrl = about ? followable(about.href, pageUrl) : null;
+  const [careersPage, aboutPage] = await Promise.all([
+    careersUrl ? readPage(careersUrl, 5_000) : null,
+    aboutUrl && aboutUrl !== careersUrl ? readPage(aboutUrl, 5_000) : null,
+  ]);
+  const careersText = careersPage ? visibleText(careersPage.html) : "";
+  const aboutText = aboutPage ? visibleText(aboutPage.html) : "";
+  const pagesRead = [careersPage, aboutPage]
+    .filter((p): p is Page => p !== null)
+    .map((p) => p.url);
+
+  // Hiring. The careers page decides when it could be read: it either shows
+  // they are recruiting, or says they are not, in which case nothing is
+  // reported. Unread, the link is reported as a link and no more than that.
+  const openings = careersPage ? OPENINGS_TEXT.exec(careersText) : null;
+  const noOpenings = careersPage ? NO_OPENINGS_TEXT.exec(careersText) : null;
   const hiringText = careers ? null : HIRING_TEXT.exec(text);
-  if (careers) {
+  if (careersPage && noOpenings) {
+    // Not hiring. Deliberately no fact and no signal.
+  } else if (careersPage && openings) {
+    signals.push("hiring");
+    fact(
+      "hiring",
+      "Their careers page is advertising open roles",
+      snippet(careersText, openings.index, openings[0].length),
+      careersPage.url
+    );
+  } else if (careers) {
     signals.push("hiring");
     fact(
       "hiring",
@@ -343,28 +506,42 @@ async function scanWebsite(rawUrl: string): Promise<WebsiteScan> {
     );
   }
 
+  // The homepage first, then the about page for anything it did not say.
+  const readable: [body: string, source: string][] = [[text, pageUrl]];
+  if (aboutPage) readable.push([aboutText, aboutPage.url]);
+
   for (const [key, statement, re] of TEXT_SIGNALS) {
-    const m = re.exec(text);
-    if (!m) continue;
-    signals.push(key);
-    fact(key, statement, snippet(text, m.index, m[0].length));
+    for (const [body, source] of readable) {
+      const m = re.exec(body);
+      if (!m) continue;
+      signals.push(key);
+      fact(key, statement, snippet(body, m.index, m[0].length), source);
+      break;
+    }
   }
 
   // Founding year, only when they state it.
   let years: number | null = null;
-  const founded = FOUNDED.exec(text);
-  if (founded) {
-    const thisYear = new Date().getFullYear();
+  const thisYear = new Date().getFullYear();
+  for (const [body, source] of readable) {
+    const founded = FOUNDED.exec(body);
+    if (!founded) continue;
     const y = parseInt(founded[1], 10);
-    if (y >= 1800 && y <= thisYear) {
-      years = thisYear - y;
-      fact(
-        "founded",
-        `Their website says they have been operating since ${y}`,
-        snippet(text, founded.index, founded[0].length)
-      );
-    }
+    if (y < 1800 || y > thisYear) continue;
+    years = thisYear - y;
+    fact(
+      "founded",
+      `Their website says they have been operating since ${y}`,
+      snippet(body, founded.index, founded[0].length),
+      source
+    );
+    break;
   }
+
+  // A named person, from the about page if it has one, else the homepage.
+  const contact =
+    (aboutPage ? structuredContact(aboutPage.html, businessName, aboutPage.url) : null) ??
+    structuredContact(html, businessName, pageUrl);
 
   const hasBlog = BLOG_PATTERNS.some((p) => p.test(html));
   if (hasBlog) fact("blog", "Their website has a blog or news section", "Blog link on the homepage");
@@ -381,6 +558,8 @@ async function scanWebsite(rawUrl: string): Promise<WebsiteScan> {
     years_in_business: years,
     business_signals: signals,
     facts,
+    contact,
+    pages_read: pagesRead,
   };
 }
 
@@ -499,7 +678,7 @@ export async function enrichLead(
   const url = record.website.url;
 
   const [scan, adFact] = await Promise.all([
-    url ? scanWebsite(url) : Promise.resolve(null),
+    url ? scanWebsite(url, record.name) : Promise.resolve(null),
     options.serpApiKey
       ? checkGoogleAds(record.name, record.address.city, url, options.serpApiKey)
       : Promise.resolve(null),
@@ -509,6 +688,15 @@ export async function enrichLead(
   // linked on the website. This catches businesses whose social presence lives
   // off-site (e.g. an active Instagram but a minimal website).
   // Skipped gracefully when no SerpAPI key is configured.
+  // A named contact. Their own website is asked first; Hunter only when it
+  // named nobody, and never for a "website" that is really a social profile or
+  // a page on someone else's platform, where the people listed are not theirs.
+  const domain = hostOf(url);
+  const contactLookup: Promise<ResearchContact | null> =
+    scan?.contact || !options.hunterApiKey || !domain || isNonBusinessDomain(domain)
+      ? Promise.resolve(scan?.contact ?? null)
+      : findContactByDomain(domain, options.hunterApiKey);
+
   let searched: { profile: SocialProfile; fact: ResearchFact }[] = [];
   if (options.serpApiKey) {
     const foundPlatforms = new Set((scan?.social_profiles ?? []).map((p) => p.platform));
@@ -536,6 +724,8 @@ export async function enrichLead(
       ...searched.map((s) => s.fact),
       ...(adFact ? [adFact] : []),
     ],
+    pages_read: scan?.pages_read ?? [],
+    contact: await contactLookup,
   };
 
   return {

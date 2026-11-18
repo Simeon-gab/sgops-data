@@ -1,6 +1,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { enrichLead, nameMatches, visibleText } from "@/lib/engine/enricher";
+import { enrichLead, nameMatches, structuredContact, visibleText } from "@/lib/engine/enricher";
+import { pickHunterContact } from "@/lib/api/hunter";
 import { scoreLead } from "@/lib/engine/scorer";
 import type { CleanBusinessRecord } from "@/lib/utils/types";
 
@@ -16,11 +17,30 @@ const realFetch = globalThis.fetch;
 interface Stub {
   site?: string | Error | number; // HTML, a network failure, or an HTTP status
   serp?: (query: string) => unknown;
+  // Other pages on the site, by path. A path not listed here gets the homepage.
+  pages?: Record<string, string | number>;
+  hunter?: unknown;
 }
 
-function stubFetch({ site, serp }: Stub) {
+// Every URL asked for, so a test can assert on what was never requested.
+let requested: string[] = [];
+
+function stubFetch({ site, serp, pages, hunter }: Stub) {
+  requested = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
+    requested.push(url);
+
+    if (url.startsWith("https://api.hunter.io/")) {
+      return new Response(JSON.stringify(hunter ?? {}), { status: hunter ? 200 : 429 });
+    }
+
+    const path = new URL(url).pathname;
+    if (pages && path in pages) {
+      const body = pages[path];
+      if (typeof body === "number") return new Response("", { status: body });
+      return new Response(body, { status: 200, headers: { "content-type": "text/html" } });
+    }
 
     if (url.startsWith("https://serpapi.com/")) {
       const query = new URL(url).searchParams.get("q") ?? "";
@@ -236,4 +256,173 @@ test("visible text drops scripts, styles and markup", () => {
     `<style>.jobs{}</style><script>hiring()</script><p>Fresh&nbsp;bread &amp; cakes</p><!-- careers -->`
   );
   assert.equal(text, "Fresh bread & cakes");
+});
+
+// ── The second page ──────────────────────────────────────────────────────────
+// A careers link in a footer outlives the last vacancy by years. The page it
+// points to is read before anyone is told the business is hiring.
+
+const careersLink = page(`<a href="/careers">Careers</a>`);
+
+test("a careers page that is recruiting is reported from that page", async () => {
+  stubFetch({
+    site: careersLink,
+    pages: { "/careers": page(`<h1>Join us</h1><p>We have three open positions on the line. Apply now.</p>`) },
+  });
+
+  const result = await enrichLead(record());
+  const hiring = fact(result, "hiring");
+
+  assert.equal(hiring?.statement, "Their careers page is advertising open roles");
+  assert.equal(hiring?.source_url, "https://harvesttable.example/careers");
+  assert.match(hiring!.evidence, /open positions/);
+  assert.deepEqual(result.research?.pages_read, ["https://harvesttable.example/careers"]);
+});
+
+test("a careers page with no openings means the business is not reported as hiring", async () => {
+  stubFetch({
+    site: careersLink,
+    pages: { "/careers": page(`<p>There are no current vacancies. Apply now for future roles.</p>`) },
+  });
+
+  const result = await enrichLead(record());
+
+  assert.equal(fact(result, "hiring"), undefined);
+  assert.ok(!result.business_signals.includes("hiring"));
+});
+
+test("a careers page that cannot be read leaves the link reported as only a link", async () => {
+  stubFetch({ site: careersLink, pages: { "/careers": 500 } });
+
+  const result = await enrichLead(record());
+
+  assert.equal(fact(result, "hiring")?.statement, "Their website links to a careers or jobs page");
+  assert.deepEqual(result.research?.pages_read, []);
+});
+
+test("a careers link to another site is never followed", async () => {
+  stubFetch({ site: page(`<a href="https://jobs.elsewhere.example/harvest">Careers</a>`) });
+
+  const result = await enrichLead(record());
+
+  assert.ok(!requested.some((u) => u.includes("elsewhere.example")));
+  assert.equal(fact(result, "hiring")?.statement, "Their website links to a careers or jobs page");
+});
+
+test("the about page supplies what the homepage did not say, with itself as the source", async () => {
+  stubFetch({
+    site: page(`<a href="/about-us">About us</a>`),
+    pages: { "/about-us": page(`<p>Family owned and established in 1998.</p>`) },
+  });
+
+  const result = await enrichLead(record());
+
+  assert.equal(result.years_in_business, new Date().getFullYear() - 1998);
+  assert.equal(fact(result, "founded")?.source_url, "https://harvesttable.example/about-us");
+});
+
+// ── A named contact ──────────────────────────────────────────────────────────
+// A wrong first name in a greeting is worse than "Hi team", so a person is
+// only named when the business's own site, or a page that still shows them,
+// says who they are.
+
+const ld = (data: unknown) =>
+  `<script type="application/ld+json">${JSON.stringify(data)}</script>`;
+
+test("a founder named in the site's structured data becomes the contact", async () => {
+  stubFetch({
+    site: page(ld({ "@type": "Organization", name: "Harvest Table Foods", founder: { "@type": "Person", name: "Mrs. Ngozi Adeyemi" } })),
+    hunter: { data: { emails: [] } },
+  });
+
+  const result = await enrichLead(record(), { hunterApiKey: "h" });
+  const contact = result.research?.contact;
+
+  assert.equal(contact?.name, "Ngozi Adeyemi");
+  assert.equal(contact?.first_name, "Ngozi");
+  assert.equal(contact?.role, "Founder");
+  assert.equal(contact?.found_via, "website");
+  assert.ok(
+    !requested.some((u) => u.includes("hunter.io")),
+    "no credit is spent when the website already named someone"
+  );
+});
+
+test("structured data only yields a person with a usable name and a role", () => {
+  const from = (data: unknown) => structuredContact(ld(data), "Harvest Table Foods", "https://x.example");
+
+  assert.equal(from({ founder: "Harvest Table Foods" }), null, "the business is not a person");
+  assert.equal(from({ founder: { name: "J. Okafor" } }), null, "an initial is not a first name");
+  assert.equal(from({ employee: [{ name: "Tunde Bello" }] }), null, "staff with no stated role");
+  assert.equal(from({ author: { "@type": "Person", name: "Sam Writer", jobTitle: "Editor" } }), null,
+    "an article author is not the business's contact");
+  assert.equal(structuredContact(`<script type="application/ld+json">{ broken</script>`, "X", "u"), null);
+
+  const picked = from({
+    "@graph": [
+      { employee: [
+        { name: "Tunde Bello", jobTitle: "Driver" },
+        { name: "Amaka Eze", jobTitle: "Managing Director" },
+      ] },
+    ],
+  });
+  assert.equal(picked?.name, "Amaka Eze");
+});
+
+const hunterPerson = (over: Record<string, unknown> = {}) => ({
+  value: "amaka@harvesttable.example",
+  type: "personal",
+  confidence: 94,
+  first_name: "Amaka",
+  last_name: "Eze",
+  position: "Operations Director",
+  seniority: "executive",
+  sources: [{ uri: "https://harvesttable.example/team", still_on_page: true }],
+  ...over,
+});
+
+test("Hunter is asked only when the website named nobody, and its answer carries proof", async () => {
+  stubFetch({ site: page(""), hunter: { data: { emails: [hunterPerson()] } } });
+
+  const result = await enrichLead(record(), { hunterApiKey: "h" });
+  const contact = result.research?.contact;
+
+  assert.equal(contact?.first_name, "Amaka");
+  assert.equal(contact?.found_via, "hunter");
+  assert.equal(contact?.source_url, "https://harvesttable.example/team");
+});
+
+test("a Hunter result is refused unless every check holds", () => {
+  const pick = (over: Record<string, unknown>) =>
+    pickHunterContact({ data: { emails: [hunterPerson(over)] } }, "harvesttable.example");
+
+  assert.ok(pick({}));
+  assert.equal(pick({ type: "generic" }), null);
+  assert.equal(pick({ last_name: null }), null);
+  assert.equal(pick({ position: "" }), null);
+  assert.equal(pick({ confidence: 60 }), null);
+  assert.equal(pick({ value: "amaka@gmail.com" }), null, "not on their domain");
+  assert.equal(
+    pick({ sources: [{ uri: "https://old.example", still_on_page: false }] }),
+    null,
+    "a page that no longer shows them proves nothing"
+  );
+});
+
+test("a social profile used as a website is never looked up as if it were their domain", async () => {
+  stubFetch({ site: page(""), hunter: { data: { emails: [hunterPerson({ value: "x@instagram.com" })] } } });
+
+  const result = await enrichLead(
+    record({ website: { url: "https://instagram.com/harvesttable", is_active: true, has_ssl: true } }),
+    { hunterApiKey: "h" }
+  );
+
+  assert.equal(result.research?.contact, null);
+  assert.ok(!requested.some((u) => u.includes("hunter.io")));
+});
+
+test("with no contact source configured the contact is simply absent", async () => {
+  stubFetch({ site: page("") });
+  const result = await enrichLead(record());
+  assert.equal(result.research?.contact, null);
 });
