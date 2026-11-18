@@ -2,9 +2,10 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Search, Download, Upload, X } from "lucide-react";
+import { Search, Download, Upload, X, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLeads } from "@/hooks/useLeads";
+import { useLeadsExport } from "@/hooks/useLeadsExport";
 import { createCampaign } from "@/hooks/useCampaigns";
 import { NewCampaignModal } from "@/components/campaigns/new-campaign-modal";
 import { LeadTable } from "@/components/leads/lead-table";
@@ -103,22 +104,8 @@ export default function LeadsPage() {
     return params.toString();
   }, [filters]);
 
-  async function handleExport() {
-    try {
-      const url = `/api/leads/export${exportParams ? `?${exportParams}` : ""}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Export failed");
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = `sgops-leads-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      toast("Export failed", "error");
-    }
-  }
+  const { exporting, exportLeads } = useLeadsExport();
+  const handleExport = () => exportLeads(exportParams);
 
   const [importOpen, setImportOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
@@ -171,10 +158,22 @@ export default function LeadsPage() {
           {leads.length > 0 && (
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border text-text-3 hover:text-text-1 hover:border-border-hover transition-colors"
+              disabled={exporting}
+              aria-busy={exporting}
+              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border text-text-3 hover:text-text-1 hover:border-border-hover transition-colors disabled:opacity-60 disabled:cursor-wait"
             >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export</span> CSV
+              {exporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {exporting ? (
+                "Exporting"
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Export</span> CSV
+                </>
+              )}
             </button>
           )}
           <Link

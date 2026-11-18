@@ -1,29 +1,14 @@
 "use client";
 
-import { CheckCircle, AlertTriangle, XCircle, ShieldCheck, Download } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, ShieldCheck, Download, Loader2 } from "lucide-react";
 import { useLeads } from "@/hooks/useLeads";
+import { useLeadsExport } from "@/hooks/useLeadsExport";
 import { QualityBadge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/toast";
 import { QUALITY_ISSUE_LABELS } from "@/lib/utils/constants";
-
-async function downloadCSV() {
-  try {
-    const res = await fetch("/api/leads/export");
-    if (!res.ok) throw new Error("Export failed");
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sgops-leads-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    toast("Export failed", "error");
-  }
-}
 
 export default function DataQualityPage() {
   const { leads, loading } = useLeads(true);
+  const { exporting, exportLeads } = useLeadsExport();
 
   const verified   = leads.filter((l) => l.data_quality === "verified").length;
   const partial    = leads.filter((l) => l.data_quality === "partial").length;
@@ -77,11 +62,17 @@ export default function DataQualityPage() {
         </div>
         {!loading && leads.length > 0 && (
           <button
-            onClick={downloadCSV}
-            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-border text-text-3 hover:text-text-1 hover:border-border-hover transition-colors"
+            onClick={() => exportLeads()}
+            disabled={exporting}
+            aria-busy={exporting}
+            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-border text-text-3 hover:text-text-1 hover:border-border-hover transition-colors disabled:opacity-60 disabled:cursor-wait"
           >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
+            {exporting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {exporting ? "Exporting" : "Export CSV"}
           </button>
         )}
       </div>
