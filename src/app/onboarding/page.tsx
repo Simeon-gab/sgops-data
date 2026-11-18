@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
@@ -12,6 +12,11 @@ import { hardNavigate } from "@/lib/utils/hard-navigate";
 // Onboarding captures the sender profile: who is writing, what they want, and
 // who they are writing to. Every generated message, and the way leads are
 // scored, is derived from these answers.
+//
+// Only four answers are asked for up front, the four generation cannot work
+// without (see isProfileComplete). Business name, proof, next step and tone all
+// have a sensible default from the chosen goal, so they sit behind one
+// disclosure instead of standing between a new user and their first search.
 
 interface FormState {
   sender_name: string;
@@ -40,6 +45,7 @@ export default function OnboardingPage() {
   const [preset, setPreset] = useState<GoalPreset | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [showOptional, setShowOptional] = useState(false);
 
   // Revisiting this page edits the existing profile rather than starting over.
   useEffect(() => {
@@ -110,7 +116,7 @@ export default function OnboardingPage() {
     return (
       <Shell
         title="What are you using this for?"
-        subtitle="This shapes the messages you generate and how leads get ranked. You can change it later."
+        subtitle="You can change this later."
       >
         <div className="grid sm:grid-cols-2 gap-3">
           {GOAL_PRESETS.map((p) => (
@@ -134,7 +140,7 @@ export default function OnboardingPage() {
   return (
     <Shell
       title={preset.label}
-      subtitle="Answer in your own words. The more specific you are, the less generic your outreach reads."
+      subtitle="Four answers and you are in. Be specific, your emails are written from these."
       onBack={() => setStep(0)}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -155,16 +161,8 @@ export default function OnboardingPage() {
           />
         </div>
 
-        <Input
-          label={preset.labels.organization}
-          placeholder={preset.placeholders.organization}
-          value={form.organization}
-          onChange={(e) => set("organization", e.target.value)}
-        />
-
         <Field
           label={preset.labels.offer}
-          hint="This is the single most important answer. Write it the way you would say it out loud."
           placeholder={preset.placeholders.offer}
           value={form.offer}
           onChange={(v) => set("offer", v)}
@@ -181,49 +179,82 @@ export default function OnboardingPage() {
           required
         />
 
-        <Field
-          label={preset.labels.credibility}
-          hint="Only what is true. Nothing here gets invented or embellished."
-          placeholder={preset.placeholders.credibility}
-          value={form.credibility}
-          onChange={(v) => set("credibility", v)}
-          rows={2}
-        />
+        <div className="border border-border rounded-xl">
+          <button
+            type="button"
+            onClick={() => setShowOptional((v) => !v)}
+            aria-expanded={showOptional}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-xl"
+          >
+            <span>
+              <span className="block text-sm font-medium text-text-2">Fine-tune (optional)</span>
+              <span className="block text-xs text-text-3 mt-0.5">
+                Business name, proof, next step and tone. Skip it and sensible defaults are used.
+              </span>
+            </span>
+            <ChevronDown
+              className={
+                "h-4 w-4 text-text-3 shrink-0 transition-transform " +
+                (showOptional ? "rotate-180" : "")
+              }
+            />
+          </button>
 
-        {preset.goal !== "research" && (
-          <Input
-            label={preset.labels.cta}
-            placeholder={preset.placeholders.cta}
-            value={form.cta}
-            onChange={(e) => set("cta", e.target.value)}
-          />
-        )}
+          {showOptional && (
+            <div className="flex flex-col gap-4 px-4 pb-4">
+              <Input
+                label={preset.labels.organization}
+                placeholder={preset.placeholders.organization}
+                value={form.organization}
+                onChange={(e) => set("organization", e.target.value)}
+              />
 
-        <div>
-          <div className="text-sm font-medium text-text-2 mb-2">How should it sound?</div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {TONES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => set("tone", t.value)}
-                className={
-                  "text-left rounded-lg border p-2.5 transition-colors " +
-                  (form.tone === t.value
-                    ? "border-gold bg-gold-dim"
-                    : "border-border bg-bg-2 hover:border-border-hover")
-                }
-              >
-                <div className="text-xs font-semibold text-text-1 flex items-center gap-1">
-                  {t.label}
-                  {form.tone === t.value && <Check className="h-3 w-3 text-gold" />}
+              <Field
+                label={preset.labels.credibility}
+                hint="Only what is true. It is quoted as written, never embellished."
+                placeholder={preset.placeholders.credibility}
+                value={form.credibility}
+                onChange={(v) => set("credibility", v)}
+                rows={2}
+              />
+
+              {preset.goal !== "research" && (
+                <Input
+                  label={preset.labels.cta}
+                  placeholder={preset.placeholders.cta}
+                  value={form.cta}
+                  onChange={(e) => set("cta", e.target.value)}
+                />
+              )}
+
+              <div>
+                <div className="text-sm font-medium text-text-2 mb-2">How should it sound?</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {TONES.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => set("tone", t.value)}
+                      className={
+                        "text-left rounded-lg border p-2.5 transition-colors " +
+                        (form.tone === t.value
+                          ? "border-gold bg-gold-dim"
+                          : "border-border bg-bg-2 hover:border-border-hover")
+                      }
+                    >
+                      <div className="text-xs font-semibold text-text-1 flex items-center gap-1">
+                        {t.label}
+                        {form.tone === t.value && <Check className="h-3 w-3 text-gold" />}
+                      </div>
+                      <div className="text-[11px] text-text-3 mt-0.5 leading-snug">
+                        {t.description}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <div className="text-[11px] text-text-3 mt-0.5 leading-snug">
-                  {t.description}
-                </div>
-              </button>
-            ))}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <Button type="submit" size="lg" loading={saving} className="mt-2">

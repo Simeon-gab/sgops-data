@@ -39,6 +39,10 @@ export interface Lead {
   years_in_business: number | null;
   estimated_employees: number | null;
   business_signals: string[];
+  // What enrichment actually saw, with the proof for each finding. Null on
+  // leads enriched before evidence was recorded: nothing about their website
+  // may be cited until they are enriched again.
+  research: LeadResearch | null;
   score: number;
   tier: LeadTier;
   score_breakdown: ScoreSignal[];
@@ -55,6 +59,29 @@ export interface Lead {
   enriched_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// One finding about a business, and the proof of it. A finding with no source
+// and no evidence is an opinion, and opinions do not go into outreach.
+export interface ResearchFact {
+  // Stable identifier: "hiring", "founded", "video", "google_ads",
+  // "social:instagram", and so on.
+  key: string;
+  // The finding in plain words, safe to quote to the business itself.
+  statement: string;
+  // The page it was seen on.
+  source_url: string;
+  // The exact text or link that proves it, so a person can check it.
+  evidence: string;
+}
+
+export interface LeadResearch {
+  // True only when the homepage was fetched and enough of it was readable that
+  // not finding something means something. When false, "no video" and every
+  // other absence is unknown, not confirmed.
+  website_read: boolean;
+  checked_at: string;
+  facts: ResearchFact[];
 }
 
 export interface SocialProfile {

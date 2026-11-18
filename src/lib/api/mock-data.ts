@@ -164,6 +164,66 @@ const NICHE_NAMES: Record<string, string[]> = {
     "Imaging Centre", "Health Diagnostics", "Lab Services", "Radiology Centre",
     "Reference Laboratory", "Health Labs", "Medicare Diagnostics",
   ],
+  food_bev_manufacturing: [
+    "Foods Manufacturing", "Food Industries", "Foods & Beverages Ltd",
+    "Food Products", "Consumer Goods", "Food Works", "Nutrition Industries",
+    "Foods Plc", "Food & Drinks Co", "Manufacturing Company", "Food Factory",
+    "Provisions Industries", "Quality Foods",
+  ],
+  food_processing: [
+    "Food Processing", "Processing Company", "Food Processors", "Agro Foods",
+    "Cannery", "Frozen Foods", "Food Concepts", "Processed Foods",
+    "Fruit Processing", "Tomato Processing", "Cassava Processing",
+    "Food Technologies", "Cold Chain Foods",
+  ],
+  beverage_producer: [
+    "Beverages", "Bottling Company", "Table Water", "Drinks Company",
+    "Juice Company", "Aqua", "Pure Water", "Soft Drinks", "Bottlers",
+    "Springs Water", "Fruit Juices", "Refreshments", "Beverage Industries",
+  ],
+  brewery_distillery: [
+    "Brewery", "Breweries", "Brewing Company", "Distillery", "Distillers",
+    "Craft Brewery", "Brew Works", "Wines & Spirits", "Brewhouse",
+    "Winery", "Malt House", "Spirits Company",
+  ],
+  commercial_bakery: [
+    "Bakeries", "Bread Industries", "Confectionery", "Biscuit Company",
+    "Bread Factory", "Baking Company", "Sweets & Confectionery",
+    "Pastries Ltd", "Master Bakers", "Biscuits & Wafers", "Cake Factory",
+    "Bakery Industries",
+  ],
+  dairy_producer: [
+    "Dairies", "Dairy Farm", "Dairy Products", "Creamery", "Ice Cream Factory",
+    "Milk Industries", "Yoghurt Company", "Dairy Foods", "Fresh Milk",
+    "Ice Cream Company", "Cheese Makers", "Dairy Processing",
+  ],
+  meat_seafood_processor: [
+    "Meat Processing", "Meats", "Abattoir", "Poultry Processing",
+    "Seafood Processing", "Frozen Fish", "Fisheries", "Chicken Processors",
+    "Meat Packers", "Smoked Fish Company", "Cold Room & Meats", "Protein Foods",
+  ],
+  grain_oil_mill: [
+    "Flour Mills", "Rice Mill", "Oil Mills", "Milling Company", "Grain Mills",
+    "Vegetable Oil", "Palm Oil Mill", "Rice Processing", "Millers",
+    "Feed Mills", "Maize Milling", "Edible Oils",
+  ],
+  snack_packaged_food: [
+    "Snacks", "Chips Company", "Noodles", "Packaged Foods", "Snack Foods",
+    "Plantain Chips", "Cereals", "Spices & Seasoning", "Crisps",
+    "Instant Foods", "Nuts & Snacks", "Popcorn Company",
+  ],
+  agro_processing: [
+    "Agro Processing", "Agro Allied", "Agro Industries", "Cashew Processing",
+    "Cocoa Processing", "Farm Produce", "Agro Ventures", "Shea Processing",
+    "Ginger Processing", "Agro Exports", "Commodities Processing",
+    "Agribusiness",
+  ],
+  food_packaging: [
+    "Packaging", "Packaging Industries", "Plastics & Packaging", "Pack Solutions",
+    "Flexible Packaging", "Bottles & Containers", "Carton Company",
+    "Label & Print Packaging", "Food Pack", "Packaging Supplies",
+    "PET Bottles", "Paper Products",
+  ],
 };
 
 const OWNER_FIRST_NAMES = [
@@ -212,6 +272,17 @@ const NICHE_CATEGORIES: Record<string, string> = {
   distributor: "Distributor / Wholesale Supplier",
   food_wholesale: "Food & Beverage Wholesaler",
   diagnostic_centre: "Diagnostic Centre / Medical Lab",
+  food_bev_manufacturing: "Food & Beverage Manufacturer",
+  food_processing: "Food Processing Company",
+  beverage_producer: "Beverage / Bottled Water Company",
+  brewery_distillery: "Brewery / Distillery",
+  commercial_bakery: "Commercial Bakery / Confectionery",
+  dairy_producer: "Dairy / Ice Cream Producer",
+  meat_seafood_processor: "Meat / Seafood Processor",
+  grain_oil_mill: "Flour, Grain / Edible Oil Mill",
+  snack_packaged_food: "Snack / Packaged Food Manufacturer",
+  agro_processing: "Agro-Processing Company",
+  food_packaging: "Food Packaging Company",
 };
 
 function buildBusinessName(nicheId: string, city: string, idx: number): string {

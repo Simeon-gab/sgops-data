@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
         years_in_business:   enrichment.years_in_business,
         estimated_employees: enrichment.estimated_employees,
         business_signals:    enrichment.business_signals,
+        research:            enrichment.research,
         score,
         tier,
         score_breakdown: breakdown,

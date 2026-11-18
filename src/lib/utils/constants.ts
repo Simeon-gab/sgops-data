@@ -34,6 +34,26 @@ export const NICHES = [
   { id: "distributor",      label: "Distributors & Wholesale Suppliers", icon: "📦" },
   { id: "food_wholesale",   label: "Food & Beverage Wholesalers",  icon: "🥫" },
   { id: "diagnostic_centre", label: "Diagnostic Centres & Medical Labs", icon: "🔬" },
+  // Food and beverage manufacturing. The general niche first, then the trades
+  // inside it, because "food manufacturer" on a map returns a mixed bag and a
+  // sender with something specific to say to a brewery or a dairy wants that
+  // list on its own. These are B2B in the same sense as the three above, with
+  // one difference that matters for outreach: the person to reach is rarely at
+  // the address on the map, which is a plant.
+  //
+  // The label doubles as the search query sent to Google and SerpAPI, so each
+  // one is worded the way these businesses are categorised there.
+  { id: "food_bev_manufacturing", label: "Food & Beverage Manufacturers",  icon: "🏭" },
+  { id: "food_processing",        label: "Food Processing Companies",      icon: "⚙️" },
+  { id: "beverage_producer",      label: "Beverage & Bottled Water Companies", icon: "🥤" },
+  { id: "brewery_distillery",     label: "Breweries & Distilleries",       icon: "🍺" },
+  { id: "commercial_bakery",      label: "Commercial Bakeries & Confectionery", icon: "🍩" },
+  { id: "dairy_producer",         label: "Dairy & Ice Cream Producers",    icon: "🥛" },
+  { id: "meat_seafood_processor", label: "Meat & Seafood Processors",      icon: "🥩" },
+  { id: "grain_oil_mill",         label: "Flour, Grain & Edible Oil Mills", icon: "🌾" },
+  { id: "snack_packaged_food",    label: "Snack & Packaged Food Manufacturers", icon: "🍪" },
+  { id: "agro_processing",        label: "Agro-Processing Companies",      icon: "🚜" },
+  { id: "food_packaging",         label: "Food Packaging Companies",       icon: "🧴" },
 ] as const;
 
 export type NicheId = (typeof NICHES)[number]["id"];

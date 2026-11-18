@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
       years_in_business:   lead.years_in_business,
       estimated_employees: lead.estimated_employees,
       business_signals:    (lead.business_signals ?? []) as string[],
+      research:            lead.research ?? null,
     };
 
     const { score, tier, breakdown } = scoreLead(record, enrichment, scoringProfile);

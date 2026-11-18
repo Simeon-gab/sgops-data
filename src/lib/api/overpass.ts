@@ -107,6 +107,41 @@ const NICHE_TAGS: Record<string, readonly TagFilter[]> = {
   // and hospital pathology departments are deliberately not in here, since
   // neither is a business anyone can pitch.
   diagnostic_centre: [{ healthcare: "laboratory" }],
+
+  // Food and beverage manufacturing. OSM maps the craft end of this well and
+  // the industrial end thinly, so only the trades with a tag of their own are
+  // mapped. Usage counts are worldwide, from taginfo, November 2026.
+  //
+  // The obvious general tag is deliberately not used: man_made=works with
+  // product=food has about 35,000 uses, and about 33,000 of those are also
+  // craft=grinding_mill, a bulk import of small grinding mills. Asking for it
+  // under "Food & Beverage Manufacturers" would return a list of mills.
+  food_bev_manufacturing: [
+    { industrial: "food_industry" },    // 567
+    { industrial: "food_processing" },  // 319
+    { industrial: "food" },             // 123
+  ],
+  food_processing: [{ industrial: "food_processing" }, { industrial: "food_industry" }],
+  brewery_distillery: [
+    { craft: "winery" },        // 17,759
+    { craft: "brewery" },       // 11,667
+    { craft: "distillery" },    // 3,074
+    { industrial: "brewery" },  // 619
+  ],
+  commercial_bakery: [
+    { craft: "confectionery" }, // 6,671
+    { craft: "bakery" },        // 1,616. The production bakery; shop=bakery is the retail counter.
+    { industrial: "bakery" },   // 724
+  ],
+  dairy_producer: [{ craft: "cheese" }, { industrial: "dairy" }], // 259 and 125, thin
+  meat_seafood_processor: [{ industrial: "slaughterhouse" }],      // 2,901
+  // This is where the grinding mills belong, and they are real businesses,
+  // though small ones: expect local mills rather than flour companies wherever
+  // that import landed.
+  grain_oil_mill: [{ craft: "grinding_mill" }, { craft: "oil_mill" }], // 33,292 and 791
+  // beverage_producer, snack_packaged_food, agro_processing and food_packaging
+  // have no tag with meaningful use (industrial=packaging: 84), so they are
+  // left unmapped and come from SerpAPI and Google Places only.
 };
 
 // -- Overpass response shapes -------------------------------------------------

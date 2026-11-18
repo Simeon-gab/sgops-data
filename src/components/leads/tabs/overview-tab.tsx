@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   Phone, Mail, Globe, Star, MapPin, Video, BookOpen,
   Instagram, Facebook, Youtube, Linkedin, Megaphone,
-  TrendingUp, Users, Sparkles, AlertCircle,
+  TrendingUp, Users, Sparkles, AlertCircle, ShieldCheck,
 } from "lucide-react";
 import { TierBadge, QualityBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,13 @@ function AISummarySection({ leadId, enriched }: { leadId: string; enriched: bool
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function OverviewTab({ lead }: OverviewTabProps) {
+  const research = lead.enriched_at ? lead.research : null;
+  // A website that exists but could not be read: what it lacks is unknown, so
+  // the red crosses below would be claims we cannot back.
+  const siteUnread = Boolean(lead.website) && research !== null && !research.website_read;
+  // Enriched before evidence was recorded. Its findings have no proof attached.
+  const unverified = Boolean(lead.enriched_at) && research === null;
+
   return (
     <div className="p-6 space-y-6">
 
@@ -256,8 +263,14 @@ export function OverviewTab({ lead }: OverviewTabProps) {
       {lead.enriched_at && (
         <Section title="Digital Presence">
           <div className="grid grid-cols-2 gap-2">
-            <CheckRow label="Video content" value={lead.has_video_content} />
-            <CheckRow label="Has blog"      value={lead.has_blog} />
+            <CheckRow
+              label="Video content"
+              value={siteUnread && !lead.has_video_content ? null : lead.has_video_content}
+            />
+            <CheckRow
+              label="Has blog"
+              value={siteUnread && !lead.has_blog ? null : lead.has_blog}
+            />
             <CheckRow label="Google Ads"    value={lead.runs_google_ads} />
             <CheckRow label="Meta Ads"      value={lead.runs_meta_ads} />
             {lead.website_quality && (
@@ -291,6 +304,62 @@ export function OverviewTab({ lead }: OverviewTabProps) {
                   </a>
                 );
               })}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Verified facts: what enrichment saw, and the proof */}
+      {lead.enriched_at && (
+        <Section title="Verified Facts">
+          {siteUnread && (
+            <div className="flex items-start gap-2 mb-2.5">
+              <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-text-3 leading-relaxed">
+                Their website could not be read, so what it does or does not have is
+                unknown. Nothing is assumed missing, and outreach will not say so.
+              </p>
+            </div>
+          )}
+          {unverified && (
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-text-3 leading-relaxed">
+                This lead was enriched before sources were recorded. Enrich it again
+                and each finding will come with the page and text that proves it.
+                Until then, outreach will not cite anything about their website.
+              </p>
+            </div>
+          )}
+          {research && research.facts.length === 0 && !siteUnread && (
+            <p className="text-xs text-text-3 italic">
+              Nothing specific was found that can be proven.
+            </p>
+          )}
+          {research && research.facts.length > 0 && (
+            <div className="space-y-1.5">
+              {research.facts.map((f) => (
+                <div
+                  key={`${f.key}:${f.source_url}`}
+                  className="flex items-start gap-2.5 py-2 px-3 rounded-lg bg-bg-3/60"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-green-400 mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-text-1 font-medium leading-snug">{f.statement}</p>
+                    <p className="text-[11px] text-text-3 mt-0.5 leading-snug break-words">
+                      {f.evidence}
+                    </p>
+                    <a
+                      href={f.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-text-3 underline hover:text-gold transition-colors"
+                    >
+                      Check the source
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Section>

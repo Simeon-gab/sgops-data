@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, RefreshCw, AlertCircle, Loader2, Send } from "lucide-react";
+import { Copy, RefreshCw, AlertCircle, Loader2, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTabContent } from "@/hooks/useTabContent";
 import { toast } from "@/components/ui/toast";
@@ -20,6 +20,20 @@ export function ColdEmailTab({ lead }: ColdEmailTabProps) {
   if (loading) return <LoadingState label="Generating cold email" />;
   if (error)   return <ErrorState error={error} onRetry={regenerate} />;
   if (!template) return null;
+
+  // What the email says about this business and where that can be checked.
+  // Emails generated before this was recorded have neither field.
+  const meta = (template.structured_data ?? {}) as {
+    based_on?: {
+      text: string;
+      source: string;
+      source_url: string | null;
+      evidence: string | null;
+    } | null;
+    issues?: string[];
+  };
+  const basedOn = meta.based_on ?? null;
+  const issues = meta.issues ?? [];
 
   const copyAll = () => {
     const text = `Subject: ${template.subject ?? ""}\n\n${template.body}`;
@@ -63,6 +77,61 @@ export function ColdEmailTab({ lead }: ColdEmailTabProps) {
           </pre>
         </div>
       </div>
+
+      {"based_on" in meta && (
+        <div className="rounded-xl border border-border bg-bg-2 px-4 py-3 flex items-start gap-2.5">
+          <ShieldCheck
+            className={
+              "h-4 w-4 mt-0.5 shrink-0 " + (basedOn ? "text-green-400" : "text-text-3")
+            }
+          />
+          {basedOn ? (
+            <div className="min-w-0 text-xs leading-relaxed">
+              <p className="text-text-2">
+                <span className="text-text-3">Opens on a verified fact: </span>
+                {basedOn.text}
+              </p>
+              {basedOn.evidence && (
+                <p className="text-text-3 mt-0.5 break-words">Seen: {basedOn.evidence}</p>
+              )}
+              <p className="text-text-3 mt-0.5">
+                {basedOn.source}
+                {basedOn.source_url && (
+                  <>
+                    {". "}
+                    <a
+                      href={basedOn.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-gold transition-colors"
+                    >
+                      Check it
+                    </a>
+                  </>
+                )}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-text-3 leading-relaxed">
+              No verified fact about this business was available, so this email makes no
+              specific claim about them. Enrich the lead to give it something true to open on.
+            </p>
+          )}
+        </div>
+      )}
+
+      {issues.length > 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+          <p className="text-xs font-medium text-amber-400">Worth a look before sending</p>
+          <ul className="mt-1 space-y-0.5">
+            {issues.map((issue) => (
+              <li key={issue} className="text-xs text-amber-400/80 leading-relaxed">
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <p className="text-xs text-text-3">
         Generated on {new Date(template.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}

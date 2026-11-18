@@ -170,14 +170,17 @@ export async function POST(req: NextRequest) {
     const inserts: Omit<OutreachTemplate, "id" | "created_at">[] = [];
 
     if (type === "cold_email") {
-      const { subject, body: emailBody, tokensUsed } = await generateColdEmail(ctx);
+      const { subject, body: emailBody, basedOn, issues, tokensUsed } =
+        await generateColdEmail(ctx);
       inserts.push({
         workspace_id: workspace.id,
         lead_id,
         type: "cold_email",
         subject,
         body: emailBody,
-        structured_data: null,
+        // What the email claims about the business and where that can be
+        // checked, kept beside the email so the sender can verify before sending.
+        structured_data: { based_on: basedOn, issues },
         model_used: MODELS.quality,
         tokens_used: tokensUsed,
       });

@@ -1,5 +1,5 @@
 import type { CleanBusinessRecord, ScoreSignal, LeadTier } from "@/lib/utils/types";
-import type { EnrichmentResult } from "./enricher";
+import { siteUnverified, type EnrichmentResult } from "./enricher";
 import { getScoringProfile, type ScoringSignal } from "@/lib/utils/constants";
 
 export interface ScoreResult {
@@ -33,8 +33,13 @@ function detectSignals(
   const out: Candidate[] = [];
   const add = (signal: ScoringSignal, reason: string) => out.push({ signal, reason });
 
+  // A website that exists but could not be read tells us nothing about what
+  // is missing from it. Scoring a timeout as "no video, hot lead" ranked
+  // businesses by our own failed request.
+  const unread = siteUnverified(record.website.url, enrichment.research);
+
   // Video
-  if (!enrichment.has_video_content) {
+  if (!enrichment.has_video_content && !unread) {
     add("no_video_content", "No video content detected on website or embeds");
   }
 

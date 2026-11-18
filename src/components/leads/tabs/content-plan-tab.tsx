@@ -70,6 +70,14 @@ function analyzeLeadData(lead: Lead): BusinessAnalysis {
   const opportunities:      string[] = [];
   const competitorInsights: string[] = [];
 
+  // An absence is only a finding when enrichment looked and recorded what it
+  // saw. A website that could not be read, or a lead enriched before evidence
+  // was kept, leaves these unknown rather than missing.
+  const research = lead.enriched_at ? lead.research : null;
+  const researched = research !== null;
+  const siteKnown = researched && (!lead.website || research.website_read);
+  const noVideo = siteKnown && !lead.has_video_content;
+
   if (lead.website) currentAssets.push("Business website present");
   if (lead.has_video_content) currentAssets.push("Video content exists");
   if (lead.has_blog) currentAssets.push("Blog or content section");
@@ -83,20 +91,24 @@ function analyzeLeadData(lead: Lead): BusinessAnalysis {
   }
   if (currentAssets.length === 0) currentAssets.push("Limited digital presence found");
 
-  if (!lead.has_video_content) missingAssets.push("No video content");
+  if (noVideo)                  missingAssets.push("No video content found");
   if (!lead.website)            missingAssets.push("No website detected");
-  if (!lead.has_blog)           missingAssets.push("No blog or content section");
-  if (!lead.runs_google_ads && !lead.runs_meta_ads) missingAssets.push("Not running digital ads");
+  if (siteKnown && !lead.has_blog) missingAssets.push("No blog or content section");
+  if (researched && !lead.runs_google_ads && !lead.runs_meta_ads) missingAssets.push("Not running digital ads");
   const ig = lead.social_profiles.find((s) => s.platform === "instagram");
   if (ig && ig.posts_per_week !== null && ig.posts_per_week < 3) {
     missingAssets.push(`Inconsistent Instagram posting (${ig.posts_per_week}x/week)`);
   }
-  if (missingAssets.length === 0) missingAssets.push("Strong baseline digital presence");
+  if (missingAssets.length === 0) {
+    missingAssets.push(
+      siteKnown ? "Strong baseline digital presence" : "Not yet verified. Enrich this lead to check."
+    );
+  }
 
   if (lead.review_count > 50) opportunities.push("Strong review base for testimonial-driven content");
-  if (lead.rating && lead.rating >= 4.5) opportunities.push("Exceptional rating — prime for brand trust content");
-  if (!lead.has_video_content)  opportunities.push("First-mover video advantage in their niche");
-  if (lead.social_profiles.length > 0 && !lead.has_video_content) {
+  if (lead.rating && lead.rating >= 4.5) opportunities.push("Exceptional rating, prime for brand trust content");
+  if (noVideo)                  opportunities.push("First-mover video advantage in their niche");
+  if (lead.social_profiles.length > 0 && noVideo) {
     opportunities.push("Existing audience to target with new video content");
   }
   if (lead.runs_google_ads || lead.runs_meta_ads) {
@@ -115,7 +127,7 @@ function analyzeLeadData(lead: Lead): BusinessAnalysis {
       competitorInsights.push(`${lead.competitors.length} competitors active in the local market`);
     }
   } else {
-    competitorInsights.push("No direct competitors identified — early mover advantage");
+    competitorInsights.push("No direct competitors identified, early mover advantage");
   }
 
   return { currentAssets, missingAssets, opportunities, competitorInsights };
@@ -267,7 +279,7 @@ function PlanDisplay({
       "PRICING",
       ...(["starter", "growth", "premium"] as const).flatMap((key) => {
         const t = plan.pricing[key];
-        return [`${t.name} — ${t.price}`, ...t.includes.map((i) => `  - ${i}`), ""];
+        return [`${t.name}: ${t.price}`, ...t.includes.map((i) => `  - ${i}`), ""];
       }),
       "KPIs",
       ...plan.kpis.map((k) => `- ${k.metric}: ${k.target} (${k.timeline})`),
@@ -439,7 +451,7 @@ function PlanDisplay({
           (["starter", "growth", "premium"] as const)
             .map((k) => {
               const t = plan.pricing[k];
-              return `${t.name} — ${t.price}\n${t.includes.map((i) => `  - ${i}`).join("\n")}`;
+              return `${t.name}: ${t.price}\n${t.includes.map((i) => `  - ${i}`).join("\n")}`;
             })
             .join("\n\n"),
           "Pricing"

@@ -1,4 +1,5 @@
 import type { CampaignPlaybook, Lead, OutreachGoal, SenderProfile } from "@/lib/utils/types";
+import { siteUnverified } from "@/lib/engine/enricher";
 
 export interface GenerationContext {
   lead: Lead;
@@ -87,11 +88,12 @@ Rules:
 - Never use em dashes. Use commas, periods, or colons instead.
 - Never say "I hope this email finds you well" or any variation.
 - Never use "synergy", "leverage", "unlock", "game-changer", or similar buzzwords.
-- Keep emails under 200 words. Shorter is better.
-- Reference a specific, verifiable observation about the recipient.
+- No filler. Every sentence must either say something true about the recipient, say what the sender does about it, or ask for the next step. If a sentence does none of these, delete it.
+- Never open by introducing the sender. Who the sender is belongs in the sign-off.
+- Keep emails between 60 and 120 words. Shorter is better.
+- Only state things about the recipient that appear in the verified observations or the lead data. If there are none, say nothing specific about them rather than inventing something.
 - Never invent credentials, results, numbers, or experience the sender did not provide.
-- Never state a fact about the recipient that is not in the data given to you.
-- Always end by asking for the sender's desired next step. Never hard sell.
+- Always end by asking for the sender's desired next step. One ask only. Never hard sell.
 - Write like a real person, not a template.
 
 Tone: ${TONE_GUIDANCE[profile.tone]}
@@ -104,82 +106,100 @@ ${playbookBlock}`;
 }
 
 // ── Observation generator (rule-based, no AI) ─────────────────────────────────
-// Only emits observations that are true given what has actually been checked,
-// and only ones that matter for this sender's goal. A job seeker does not care
-// whether a hospital has video on its website.
+// The only things an outreach message may say about a business. Each one is
+// either a fact enrichment recorded with its proof, or a figure from the
+// business's own listing. Nothing here is inferred, and nothing is an opinion:
+// "their website looks dated" and "they clearly have budget" used to be in this
+// list, and neither is something we can show the recipient if they ask.
+//
+// Observations are also filtered by goal. A job seeker does not care whether a
+// hospital has video on its website.
 
-export function generateObservations(lead: Lead, profile: SenderProfile): string[] {
-  const obs: string[] = [];
-  const enriched = lead.enriched_at !== null;
+export interface Observation {
+  text: string;
+  // Where a person can check it.
+  source: string;
+  source_url: string | null;
+  // The exact text or link behind it, when enrichment captured one.
+  evidence: string | null;
+}
+
+const FACTS_FOR_EVERY_GOAL = new Set([
+  "hiring", "multiple_locations", "recently_opened", "recently_renovated",
+  "award_winning", "founded",
+]);
+
+const ENRICHMENT_SOURCE = "Their website and search results, checked during enrichment";
+
+export function generateObservations(lead: Lead, profile: SenderProfile): Observation[] {
+  const obs: Observation[] = [];
   const goal = profile.goal;
   const isMarketingSeller = goal === "win_clients";
   const isBuyerFocused = goal === "sell_product" || goal === "partnership";
+  const fromGoogle = lead.source === "google_places" || lead.source === "serpapi";
+  const research = lead.enriched_at !== null ? lead.research : null;
 
-  // ── Signals that matter to every goal ──────────────────────────────────────
+  // ── Facts recorded by enrichment, each with its proof ──────────────────────
 
-  if (enriched && lead.business_signals.includes("hiring")) {
-    obs.push(`${lead.name} has hiring or careers language on their website.`);
-  }
-  if (enriched && lead.business_signals.includes("multiple_locations")) {
-    obs.push(`${lead.name} operates multiple locations.`);
-  }
-  if (enriched && lead.business_signals.includes("recently_opened")) {
-    obs.push(`${lead.name} appears to have opened recently.`);
-  }
-  if (enriched && lead.business_signals.includes("award_winning")) {
-    obs.push(`${lead.name} advertises awards or recognition on their site.`);
-  }
-  if (lead.review_count > 100) {
-    obs.push(
-      `${lead.name} has ${lead.review_count} Google reviews with a ${lead.rating} rating, indicating strong customer satisfaction.`
-    );
-  }
-  if (enriched && lead.years_in_business !== null && lead.years_in_business >= 3) {
-    obs.push(`${lead.name} has been operating for around ${lead.years_in_business} years.`);
-  }
-  if (enriched && lead.estimated_employees !== null && lead.estimated_employees >= 5) {
-    obs.push(`${lead.name} looks to have roughly ${lead.estimated_employees} staff.`);
+  for (const fact of research?.facts ?? []) {
+    const relevant =
+      FACTS_FOR_EVERY_GOAL.has(fact.key) ||
+      (isMarketingSeller &&
+        (fact.key === "video" || fact.key === "blog" || fact.key.startsWith("social:"))) ||
+      ((isMarketingSeller || isBuyerFocused) && fact.key === "google_ads");
+    if (!relevant) continue;
+
+    obs.push({
+      text: `${fact.statement}.`,
+      source: ENRICHMENT_SOURCE,
+      source_url: fact.source_url,
+      evidence: fact.evidence,
+    });
   }
 
-  // ── Marketing-opportunity signals ──────────────────────────────────────────
+  // ── Figures from their public listing ──────────────────────────────────────
 
-  if (isMarketingSeller && enriched) {
-    if (!lead.has_video_content) {
-      obs.push(`${lead.name} has no video content detected on their website or social media.`);
+  if (lead.review_count >= 100 && lead.rating !== null) {
+    obs.push({
+      text: `Their ${fromGoogle ? "Google " : ""}listing shows ${lead.review_count.toLocaleString("en")} reviews and a ${lead.rating} rating.`,
+      source: fromGoogle ? "Google Maps listing" : "Imported listing data",
+      source_url: null,
+      evidence: null,
+    });
+  }
+
+  // ── Things that are missing ────────────────────────────────────────────────
+  // An absence is only a finding when we looked properly. These need a readable
+  // website (or a Google listing with no website on it at all), and they are
+  // worded as what was found, not as a verdict on the business.
+
+  if (isMarketingSeller) {
+    if (!lead.website && fromGoogle) {
+      obs.push({
+        text: "Their Google listing has no website on it.",
+        source: "Google Maps listing",
+        source_url: null,
+        evidence: null,
+      });
     }
-    if (lead.has_video_content && lead.website_quality === "outdated") {
-      obs.push(
-        `${lead.name} has some video but their website looks dated. There is an upgrade opportunity.`
-      );
+    if (research?.website_read && !lead.has_video_content) {
+      obs.push({
+        text: "No video was found on their homepage, and no Instagram, TikTok or YouTube profile could be tied to them.",
+        source: ENRICHMENT_SOURCE,
+        source_url: lead.website,
+        evidence: null,
+      });
     }
-    const ig = lead.social_profiles.find((s) => s.platform === "instagram");
-    if (ig && ig.followers && ig.posts_per_week !== null && ig.posts_per_week < 3) {
-      obs.push(
-        `${lead.name} has ${ig.followers.toLocaleString()} Instagram followers but posts inconsistently (${ig.posts_per_week}x per week).`
-      );
-    }
-    const withVideo = lead.competitors.filter((c) => c.has_video);
-    if (withVideo.length > 0) {
-      obs.push(
-        `${withVideo.length} of ${lead.competitors.length} competitors in the area already have video content.`
-      );
-    }
-  }
-
-  // ── Budget and buying-power signals ────────────────────────────────────────
-
-  if ((isBuyerFocused || isMarketingSeller) && enriched) {
-    if (lead.runs_google_ads || lead.runs_meta_ads) {
-      obs.push(
-        `${lead.name} is already spending on digital advertising, confirming they have marketing budget.`
-      );
-    }
-  }
-  if (isBuyerFocused && enriched && lead.website_quality === "modern") {
-    obs.push(`${lead.name} runs a modern, actively maintained website.`);
   }
 
   return obs;
+}
+
+function observationList(observations: Observation[], none: string): string {
+  if (observations.length === 0) return none;
+  return observations
+    .map((o, i) => `[${i + 1}] ${o.text}${o.evidence ? ` (seen: ${o.evidence})` : ""}`)
+    .join("\n");
 }
 
 // ── Minimal lead snapshot sent to AI (avoids leaking internal IDs) ─────────────
@@ -213,6 +233,13 @@ interface LeadSnapshot {
 
 function leadSnapshot(lead: Lead): LeadSnapshot {
   const enriched = lead.enriched_at !== null;
+  // Enrichment ran and recorded what it saw. Leads enriched before evidence
+  // was kept have research = null, and their findings are not trusted.
+  const researched = enriched && lead.research !== null;
+  // What a website does or does not contain is only known when it was read. A
+  // lead with no website has nothing to read, so that much is known too.
+  const siteKnown = researched && !siteUnverified(lead.website, lead.research);
+
   return {
     name: lead.name,
     city: lead.city,
@@ -222,17 +249,17 @@ function leadSnapshot(lead: Lead): LeadSnapshot {
     rating: lead.rating,
     review_count: lead.review_count,
     enriched,
-    // Digital-presence signals are only trustworthy after enrichment. Before that
-    // they are reported as "unknown" so the model cannot mistake a blank for a "no".
-    has_video: enriched ? lead.has_video_content : "unknown",
-    has_blog: enriched ? lead.has_blog : "unknown",
+    // Anything not actually checked is reported as "unknown" so the model
+    // cannot mistake a blank for a "no".
+    has_video: siteKnown ? lead.has_video_content : "unknown",
+    has_blog: siteKnown ? lead.has_blog : "unknown",
     website: lead.website,
-    website_quality: enriched ? lead.website_quality : "unknown",
-    social_platforms: enriched ? lead.social_profiles.map((s) => s.platform) : "unknown",
-    runs_ads: enriched ? lead.runs_google_ads || lead.runs_meta_ads : "unknown",
-    business_signals: enriched ? lead.business_signals : "unknown",
-    years_in_business: enriched ? lead.years_in_business : "unknown",
-    estimated_employees: enriched ? lead.estimated_employees : "unknown",
+    website_quality: siteKnown ? lead.website_quality : "unknown",
+    social_platforms: researched ? lead.social_profiles.map((s) => s.platform) : "unknown",
+    runs_ads: researched ? lead.runs_google_ads || lead.runs_meta_ads : "unknown",
+    business_signals: siteKnown ? lead.business_signals : "unknown",
+    years_in_business: siteKnown ? lead.years_in_business : "unknown",
+    estimated_employees: researched ? lead.estimated_employees : "unknown",
     competitor_names: lead.competitors.map((c) => c.name),
     score: lead.score,
     tier: lead.tier,
@@ -242,39 +269,66 @@ function leadSnapshot(lead: Lead): LeadSnapshot {
 // Shared accuracy contract. Every prompt that shows the model lead data must
 // include this, otherwise unchecked fields get reported as confirmed absences.
 const ACCURACY_RULES = `Accuracy rules (follow strictly):
-- The lead JSON is the ONLY thing you know about this organization. Do not invent facts or infer signals that are not present.
+- The lead JSON and the verified observations are the ONLY things you know about this organization. Do not invent facts or infer signals that are not present.
 - A field set to "unknown" means it was NOT checked. Never describe an "unknown" field as a lack or absence.
 - Report a signal as absent ONLY when "enriched" is true AND that field is explicitly false or empty. Even then, phrase it as "no X detected" rather than as certain fact, because detection can miss off-site profiles.`;
 
 // ── Prompt templates ───────────────────────────────────────────────────────────
 
-export function coldEmailPrompt(ctx: GenerationContext, observations: string[]): string {
+// The cold email is built to be read in a few seconds by someone who did not
+// ask for it. The shape is fixed: one true thing about them, why it matters,
+// what the sender does about it, one question. Nothing comes before the first
+// of those, because the first line is also what shows in the inbox preview, and
+// a preview that reads "My name is..." is how cold email gets deleted unopened.
+//
+// The ask is phrased as a question about interest rather than a request for
+// time. Gong's analysis of 304,174 sales emails found interest-based asks the
+// best performing call to action on a cold first touch; asking for a specific
+// slot only wins later, once a conversation exists.
+export function coldEmailPrompt(ctx: GenerationContext, observations: Observation[]): string {
   const { lead, profile } = ctx;
-  const signOff = profile.organization
-    ? `${profile.sender_name}, ${profile.organization}`
-    : profile.sender_name;
+  const signOff = [profile.sender_name, profile.sender_role, profile.organization]
+    .filter(Boolean)
+    .join(", ");
+
+  const opener = observations.length
+    ? `Opener: one sentence stating ONE of the verified observations in plain words. Pick the one most relevant to what the sender offers. State it as something noticed, not as praise and not as criticism. Add nothing to it: no detail, cause or consequence that the observation itself does not state.`
+    : `Opener: there are no verified observations about this business, so do not claim to have noticed anything about them. Open with one sentence about a situation ${lead.niche_label.toLowerCase()} in ${lead.city} commonly face, taken from the audience context, phrased as general and not as a fact about ${lead.name}.`;
+
+  const proof = profile.credibility
+    ? "Include one proof point from the sender's credibility, using only the figures given."
+    : "The sender gave no proof points, so make no claims about past results.";
 
   return `Write a cold email to ${lead.name}.
 
 Lead data:
 ${JSON.stringify(leadSnapshot(lead), null, 2)}
 
-Observations you may reference (only these, and only if relevant):
-${observations.length ? observations.join("\n") : "None available. Reference only the lead data above, and keep it general rather than inventing detail."}
+Verified observations (the only specific things you may say about them):
+${observationList(observations, "None.")}
 
 ${ACCURACY_RULES}
 
-Requirements:
-- Subject line under 8 words, no clickbait
-- Body under 200 words
-- Reference at least one specific, true observation about them
-- Close by asking for: ${profile.cta}
-- Sign off as: ${signOff}
+Write the body in exactly this order, as short plain paragraphs with a blank line between them:
+1. Greeting: "Hi ${lead.name} team," on its own line.
+2. ${opener}
+3. Bridge: one sentence on what that commonly costs businesses like theirs, or makes possible for them. This is your reasoning, not something you know about them, so word it as general ("often", "can", "tends to") and never as a fact about this business.
+4. Offer: one or two sentences on what the sender does about it. ${proof}
+5. Ask: one question that checks whether they are interested in this next step: ${profile.cta}. Make it easy to answer in one line. Ask once.
+6. Sign-off: ${signOff}
 
-Return as JSON: { "subject": "...", "body": "..." }`;
+Hard limits:
+- Body between 60 and 120 words, counting everything from the greeting to the sign-off.
+- The sentence after the greeting must be about them. It must not start with "I", "My", "We" or "Our", and must not contain "my name is", "I am reaching out", "I wanted to", "I came across", "I hope", or "just".
+- No compliments that are not one of the verified observations.
+- No bullet points, no bold, no headings, no placeholders in brackets.
+- ${profile.website ? `At most one link, and only this one: ${profile.website}` : "No links."}
+- Subject line: 2 to 5 words, specific to them, sentence case, no exclamation marks, never "quick question". It must not state or imply a problem they have not been verified to have.
+
+Return as JSON: { "subject": "...", "body": "...", "observation_used": <the number of the observation you opened with, or null> }`;
 }
 
-export function callScriptPrompt(ctx: GenerationContext, observations: string[]): string {
+export function callScriptPrompt(ctx: GenerationContext, observations: Observation[]): string {
   const { lead, profile } = ctx;
 
   return `Write a cold call script for contacting ${lead.name}.
@@ -282,8 +336,8 @@ export function callScriptPrompt(ctx: GenerationContext, observations: string[])
 Lead data:
 ${JSON.stringify(leadSnapshot(lead), null, 2)}
 
-Observations you may reference:
-${observations.length ? observations.join("\n") : "None available."}
+Verified observations (the only specific things you may say about them):
+${observationList(observations, "None. Do not claim to have noticed anything specific about them.")}
 
 ${ACCURACY_RULES}
 
@@ -312,9 +366,11 @@ The ask: ${profile.cta}
 ${ACCURACY_RULES}
 
 Sequence:
-- Day 3: Short, casual follow-up. Reference the original email. Under 80 words.
-- Day 7: Value-add email. Share a relevant insight about their situation. Under 120 words.
-- Day 14: Final touch. Graceful close. Leave the door open. Under 80 words.
+- Day 3: Two or three sentences. Restate the single most useful point of the original email in new words, then repeat the ask. Under 60 words.
+- Day 7: One new, relevant point about their sector that the first email did not make, drawn from the audience context, then the ask. Under 90 words.
+- Day 14: Final note. Say this is the last message and leave the door open, with no guilt. Under 50 words.
+
+Every email must add something. Never write "just checking in", "bumping this", "following up on my last email", or "did you see my email". Never open by introducing the sender. Do not state anything about the business that is not in the lead data.
 
 Return as JSON array: [{ "day": 3, "subject": "...", "body": "..." }, ...]`;
 }
@@ -394,7 +450,7 @@ Return ONLY valid JSON with this exact structure. All values must be strings or 
 Generate 6-8 deliverables and 5-6 KPIs. Price packages specific to the services selected: ${services}.`;
 }
 
-export function proposalPrompt(ctx: GenerationContext, observations: string[]): string {
+export function proposalPrompt(ctx: GenerationContext, observations: Observation[]): string {
   const { lead, profile } = ctx;
   const who = profile.organization ?? profile.sender_name;
 
@@ -403,8 +459,8 @@ export function proposalPrompt(ctx: GenerationContext, observations: string[]): 
 Lead data:
 ${JSON.stringify(leadSnapshot(lead), null, 2)}
 
-Observations you may reference:
-${observations.length ? observations.join("\n") : "None available."}
+Verified observations (the only specific things you may say about them):
+${observationList(observations, "None. Do not claim to have noticed anything specific about them.")}
 
 ${ACCURACY_RULES}
 

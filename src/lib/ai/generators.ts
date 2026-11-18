@@ -10,22 +10,79 @@ import {
   proposalPrompt,
   leadIntelPrompt,
 } from "./prompts";
-import type { GenerationContext } from "./prompts";
+import type { GenerationContext, Observation } from "./prompts";
+import { lintColdEmail, stripEmDashes } from "./email-lint";
 
 // ── Cold email ─────────────────────────────────────────────────────────────────
 
-export async function generateColdEmail(
-  ctx: GenerationContext
-): Promise<{ subject: string; body: string; tokensUsed: number }> {
+interface ColdEmailDraft {
+  subject: string;
+  body: string;
+  observation_used?: number | null;
+}
+
+export interface ColdEmailResult {
+  subject: string;
+  body: string;
+  // The verified observation the email opens on, with where to check it. Null
+  // when the email makes no specific claim about the business.
+  basedOn: Observation | null;
+  // Rule breaks that survived the rewrite, shown to the sender rather than
+  // hidden. Empty in the normal case.
+  issues: string[];
+  tokensUsed: number;
+}
+
+export async function generateColdEmail(ctx: GenerationContext): Promise<ColdEmailResult> {
   const observations = generateObservations(ctx.lead, ctx.profile);
-  const { content, tokensUsed } = await callClaude(
-    buildSystemPrompt(ctx),
-    coldEmailPrompt(ctx, observations),
-    MODELS.quality,
-    TOKEN_BUDGETS.cold_email
-  );
-  const parsed = parseJson<{ subject: string; body: string }>(content);
-  return { ...parsed, tokensUsed };
+  const system = buildSystemPrompt(ctx);
+  const prompt = coldEmailPrompt(ctx, observations);
+
+  const clean = (raw: string): ColdEmailDraft => {
+    const draft = parseJson<ColdEmailDraft>(raw);
+    return {
+      ...draft,
+      subject: stripEmDashes(draft.subject ?? "").trim(),
+      body: stripEmDashes(draft.body ?? "").trim(),
+    };
+  };
+
+  const first = await callClaude(system, prompt, MODELS.quality, TOKEN_BUDGETS.cold_email);
+  let draft = clean(first.content);
+  let issues = lintColdEmail(draft.subject, draft.body);
+  let tokensUsed = first.tokensUsed;
+
+  // One rewrite, with the specific reasons. If the rewrite is no better the
+  // first draft stands and the remaining issues are reported.
+  if (issues.length > 0) {
+    try {
+      const retry = await callClaude(
+        system,
+        `${prompt}\n\nYour previous draft was rejected:\n${JSON.stringify({ subject: draft.subject, body: draft.body })}\n\nProblems to fix:\n${issues.map((i) => `- ${i}`).join("\n")}\n\nWrite it again, fixing every problem. Same JSON format.`,
+        MODELS.quality,
+        TOKEN_BUDGETS.cold_email
+      );
+      tokensUsed += retry.tokensUsed;
+      const second = clean(retry.content);
+      const secondIssues = lintColdEmail(second.subject, second.body);
+      if (secondIssues.length < issues.length) {
+        draft = second;
+        issues = secondIssues;
+      }
+    } catch {
+      // The first draft is still a usable email. Keep it.
+    }
+  }
+
+  const index = typeof draft.observation_used === "number" ? draft.observation_used - 1 : -1;
+
+  return {
+    subject: draft.subject,
+    body: draft.body,
+    basedOn: observations[index] ?? null,
+    issues,
+    tokensUsed,
+  };
 }
 
 // ── Call script ────────────────────────────────────────────────────────────────
